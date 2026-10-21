@@ -1,0 +1,31 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: scalable-hotel-management
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/hotel_db}
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6380}
+      timeout: 2000
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: 86400000
+
+snowflake:
+  datacenter-id: ${SNOWFLAKE_DATACENTER_ID:1}
+  machine-id: ${SNOWFLAKE_MACHINE_ID:1}
+
+ratelimit:
+  capacity: ${RATE_LIMIT_CAPACITY:100}
+  refill-rate: ${RATE_LIMIT_REFILL_RATE:2}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics, prometheus

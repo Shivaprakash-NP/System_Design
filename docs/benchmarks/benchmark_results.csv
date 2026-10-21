@@ -1,0 +1,10 @@
+Workload,Endpoint,Concurrency (VUs),Total Requests,Success,Failed,Error Rate (%),Throughput (QPS),Avg Latency (ms),p95 Latency (ms),p99 Latency (ms),System Load,RAM (%)
+LOW,hotelSearch,10,200,200,0,0.0,1100.39,8.8,0.0,0.0,1.98,68.81
+MEDIUM,hotelSearch,50,1000,1000,0,0.0,1280.1,35.4,0.0,0.0,1.98,69.66
+HIGH,hotelSearch,100,2000,2000,0,0.0,1720.13,52.9,0.0,0.0,1.98,70.22
+LOW,autocomplete,10,200,200,0,0.0,1606.42,6.1,0.0,0.0,1.98,70.44
+MEDIUM,autocomplete,50,1000,1000,0,0.0,2375.26,20.4,0.0,0.0,1.98,70.64
+HIGH,autocomplete,100,2000,2000,0,0.0,5318.7,18.0,0.0,0.0,1.98,70.11
+LOW,cachedAvailableRooms,10,200,200,0,0.0,1778.31,5.5,0.0,0.0,2.95,70.02
+MEDIUM,cachedAvailableRooms,50,1000,1000,0,0.0,5002.72,9.5,0.0,0.0,2.95,69.98
+HIGH,cachedAvailableRooms,100,2000,2000,0,0.0,5970.69,15.5,0.0,0.0,2.95,70.14

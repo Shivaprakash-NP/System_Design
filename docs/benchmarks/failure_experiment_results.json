@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-10-21T15:13:38Z",
+  "rateLimiterExperiment": {
+    "experiment": "Rate Limiter Burst Rejection",
+    "totalRequests": 150,
+    "allowedRequests": 101,
+    "rejectedRequests429": 49,
+    "rejectionRatePct": 32.67,
+    "durationSec": 0.983,
+    "outcome": "PASS - HTTP 429 successfully returned after token depletion"
+  },
+  "concurrencyDoubleBookingExperiment": {
+    "experiment": "Concurrent Double Booking Protection",
+    "roomId": "6ad8c9c89263526623f2262b",
+    "roomNumber": "101",
+    "dateInterval": "[2028-02-10, 2028-02-15)",
+    "concurrencyLevel": 50,
+    "successfulBookings": 1,
+    "rejectedConflicts": 49,
+    "invariantPreserved": true,
+    "successfulBookingId": 371315100193263616,
+    "outcome": "PASS - Strictly zero duplicate confirmed bookings permitted"
+  }
+}

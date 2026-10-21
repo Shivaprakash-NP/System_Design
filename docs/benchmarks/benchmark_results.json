@@ -1,0 +1,340 @@
+{
+  "metadata": {
+    "timestamp": "2026-10-21T15:11:46Z",
+    "academicContext": "UCS3513 System Design Laboratory, SSN College of Engineering",
+    "environment": "Java 21, Spring Boot 4.x/3.x, MongoDB 6.0, Redis 7.0-alpine",
+    "tool": "hey (HTTP load testing engine)"
+  },
+  "workloads": {
+    "hotelSearch": [
+      {
+        "concurrency": 10,
+        "totalRequests": 200,
+        "successfulRequests": 200,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 1100.39,
+        "avgLatencyMs": 8.8,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 1.98,
+        "memoryUsagePct": 68.81,
+        "workload": "LOW"
+      },
+      {
+        "concurrency": 50,
+        "totalRequests": 1000,
+        "successfulRequests": 1000,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 1280.1,
+        "avgLatencyMs": 35.4,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 1.98,
+        "memoryUsagePct": 69.66,
+        "workload": "MEDIUM"
+      },
+      {
+        "concurrency": 100,
+        "totalRequests": 2000,
+        "successfulRequests": 2000,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 1720.13,
+        "avgLatencyMs": 52.9,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 1.98,
+        "memoryUsagePct": 70.22,
+        "workload": "HIGH"
+      }
+    ],
+    "autocomplete": [
+      {
+        "concurrency": 10,
+        "totalRequests": 200,
+        "successfulRequests": 200,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 1606.42,
+        "avgLatencyMs": 6.1,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 1.98,
+        "memoryUsagePct": 70.44,
+        "workload": "LOW"
+      },
+      {
+        "concurrency": 50,
+        "totalRequests": 1000,
+        "successfulRequests": 1000,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 2375.26,
+        "avgLatencyMs": 20.4,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 1.98,
+        "memoryUsagePct": 70.64,
+        "workload": "MEDIUM"
+      },
+      {
+        "concurrency": 100,
+        "totalRequests": 2000,
+        "successfulRequests": 2000,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 5318.7,
+        "avgLatencyMs": 18.0,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 1.98,
+        "memoryUsagePct": 70.11,
+        "workload": "HIGH"
+      }
+    ],
+    "cachedAvailableRooms": [
+      {
+        "concurrency": 10,
+        "totalRequests": 200,
+        "successfulRequests": 200,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 1778.31,
+        "avgLatencyMs": 5.5,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 2.95,
+        "memoryUsagePct": 70.02,
+        "workload": "LOW"
+      },
+      {
+        "concurrency": 50,
+        "totalRequests": 1000,
+        "successfulRequests": 1000,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 5002.72,
+        "avgLatencyMs": 9.5,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 2.95,
+        "memoryUsagePct": 69.98,
+        "workload": "MEDIUM"
+      },
+      {
+        "concurrency": 100,
+        "totalRequests": 2000,
+        "successfulRequests": 2000,
+        "failedRequests": 0,
+        "rateLimit429s": 0,
+        "errorRatePct": 0.0,
+        "throughputQps": 5970.69,
+        "avgLatencyMs": 15.5,
+        "p95LatencyMs": 0.0,
+        "p99LatencyMs": 0.0,
+        "systemLoad": 2.95,
+        "memoryUsagePct": 70.14,
+        "workload": "HIGH"
+      }
+    ]
+  },
+  "systemDesignComponents": {
+    "rateLimiter": {
+      "allowedRequests": 0,
+      "rejectedRequests": 0,
+      "rejectionRatePercentage": "0.00%",
+      "algorithm": "Token Bucket (Redis Lua with In-memory Fallback)"
+    },
+    "sharding": {
+      "totalDocuments": 9,
+      "activeShardsCount": 2,
+      "activeShards": [
+        "shard_1",
+        "shard_0"
+      ],
+      "shardBreakdown": {
+        "shard_1": {
+          "total": 2,
+          "rooms": 0,
+          "bookings": 0,
+          "hotels": 2
+        },
+        "shard_0": {
+          "total": 7,
+          "rooms": 3,
+          "bookings": 2,
+          "hotels": 2
+        }
+      },
+      "maxShardRecords": 7,
+      "minShardRecords": 2,
+      "imbalanceFactor": "250.00%",
+      "architectureNote": "Application-level logical partitioning routes entities by shard key (hotelId) across logical namespaces. Distinguishes from native MongoDB mongos cluster sharding."
+    },
+    "consistentHashing": {
+      "consistentRemappingPercentage": "33.40%",
+      "moduloRemappedCount": 337,
+      "consistentRemappedCount": 167,
+      "theoreticalOptimalRemap": "33.33%",
+      "sampleKeysCount": 500,
+      "moduloRemappingPercentage": "67.40%",
+      "newNode": "shard_eval_node",
+      "nodesBefore": 2,
+      "nodesAfter": 3
+    },
+    "cache": {
+      "cacheHits": 3190,
+      "cacheMisses": 10,
+      "totalLookups": 3200,
+      "hitRatioPercentage": "99.69%",
+      "averageLookupLatencyMs": "4.606 ms",
+      "cacheBackend": "Redis 7.0 (with MongoDB fallback)"
+    },
+    "idGenerator": {
+      "algorithm": "Twitter Snowflake 64-bit ID",
+      "totalIdsRequested": 50000,
+      "uniqueIdsGenerated": 50000,
+      "collisionCount": 0,
+      "threads": 10,
+      "durationMs": "22.79 ms",
+      "generationRatePerSecond": "2194138 IDs/sec"
+    },
+    "urlShortener": {
+      "redirectionCount": 0,
+      "averageRedirectionLatencyMs": "0.000 ms",
+      "encoding": "Base62 with Redis Cache & MongoDB Storage"
+    },
+    "crawler": {
+      "execution": {
+        "status": "COMPLETED",
+        "durationMs": 9,
+        "pagesCrawled": 2,
+        "successfulPages": 4,
+        "failedPages": 0,
+        "recordsExtracted": 6,
+        "sampleRecords": [
+          {
+            "id": "6ad8d6361c9aec4ccbf9a87a",
+            "competitorName": "Grand Vista Chennai",
+            "sourceUrl": "http://simulated-competitor-a.local/rates",
+            "roomType": "SINGLE",
+            "observedPrice": 89.0,
+            "currency": "USD",
+            "amenities": [
+              "Free WiFi",
+              "Breakfast Included"
+            ],
+            "rating": 4.7,
+            "reviewCount": 340,
+            "status": "SUCCESS",
+            "crawledAt": "2026-10-21T20:41:50.328553978"
+          },
+          {
+            "id": "6ad8d6361c9aec4ccbf9a87b",
+            "competitorName": "Grand Vista Chennai",
+            "sourceUrl": "http://simulated-competitor-a.local/rates",
+            "roomType": "DOUBLE",
+            "observedPrice": 139.0,
+            "currency": "USD",
+            "amenities": [
+              "City View",
+              "Minibar"
+            ],
+            "rating": 4.7,
+            "reviewCount": 340,
+            "status": "SUCCESS",
+            "crawledAt": "2026-10-21T20:41:50.328614049"
+          },
+          {
+            "id": "6ad8d6361c9aec4ccbf9a87c",
+            "competitorName": "Grand Vista Chennai",
+            "sourceUrl": "http://simulated-competitor-a.local/rates",
+            "roomType": "SUITE",
+            "observedPrice": 275.0,
+            "currency": "USD",
+            "amenities": [
+              "Airport Transfer",
+              "Lounge Access"
+            ],
+            "rating": 4.7,
+            "reviewCount": 340,
+            "status": "SUCCESS",
+            "crawledAt": "2026-10-21T20:41:50.328664361"
+          },
+          {
+            "id": "6ad8d6361c9aec4ccbf9a87d",
+            "competitorName": "Marina Bay Luxury Mumbai",
+            "sourceUrl": "http://simulated-competitor-b.local/rates",
+            "roomType": "SINGLE",
+            "observedPrice": 105.0,
+            "currency": "USD",
+            "amenities": [
+              "Sea Breeze"
+            ],
+            "rating": 4.8,
+            "reviewCount": 512,
+            "status": "SUCCESS",
+            "crawledAt": "2026-10-21T20:41:50.329806618"
+          },
+          {
+            "id": "6ad8d6361c9aec4ccbf9a87e",
+            "competitorName": "Marina Bay Luxury Mumbai",
+            "sourceUrl": "http://simulated-competitor-b.local/rates",
+            "roomType": "DOUBLE",
+            "observedPrice": 169.0,
+            "currency": "USD",
+            "amenities": [
+              "Balcony",
+              "King Bed"
+            ],
+            "rating": 4.8,
+            "reviewCount": 512,
+            "status": "SUCCESS",
+            "crawledAt": "2026-10-21T20:41:50.32985632"
+          },
+          {
+            "id": "6ad8d6361c9aec4ccbf9a87f",
+            "competitorName": "Marina Bay Luxury Mumbai",
+            "sourceUrl": "http://simulated-competitor-b.local/rates",
+            "roomType": "SUITE",
+            "observedPrice": 320.0,
+            "currency": "USD",
+            "amenities": [
+              "Private Jacuzzi",
+              "Butler"
+            ],
+            "rating": 4.8,
+            "reviewCount": 512,
+            "status": "SUCCESS",
+            "crawledAt": "2026-10-21T20:41:50.329900646"
+          }
+        ],
+        "throughputPagesPerSec": 222.22222222222223,
+        "accuracy": "100.00% structured schema conformance"
+      },
+      "stats": {
+        "totalPagesCrawled": 4,
+        "successfulPages": 4,
+        "failedPages": 0,
+        "successRate": "100.00%",
+        "totalDurationMs": 116,
+        "averageThroughputPagesPerSec": "34.48"
+      }
+    },
+    "autocomplete": {
+      "queryCount": 3203,
+      "averageLatencyMs": "9.472 ms",
+      "algorithm": "Redis ZSet Lexicographical Range with In-Memory Trie Fallback"
+    }
+  }
+}
