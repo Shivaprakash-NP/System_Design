@@ -49,14 +49,30 @@ const SearchBarWithAutocomplete = ({ onSelect }) => {
                     }}
                     onFocus={() => setIsTyping(true)}
                     onBlur={() => setTimeout(() => setIsTyping(false), 250)}
-                    placeholder="Search hotel name, city (e.g. Chennai, Taj, Leela)..."
-                    style={{ width: '100%', padding: '10px 14px', fontSize: '14px' }}
+                    placeholder="Search hotel name, destination, or city..."
+                    style={{
+                        width: '100%',
+                        padding: '11px 16px',
+                        fontSize: '13.5px',
+                        borderRadius: '8px',
+                        border: '1px solid #E5E7E1',
+                        backgroundColor: '#FFFFFF',
+                        color: '#252925'
+                    }}
                 />
                 {query && (
                     <button 
                         type="button" 
                         onClick={() => handleSelect('')}
-                        style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '0 12px', borderRadius: '6px', color: '#64748b' }}
+                        style={{
+                            background: '#F0F1EC',
+                            border: '1px solid #E5E7E1',
+                            padding: '0 12px',
+                            borderRadius: '8px',
+                            color: '#70766F',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                        }}
                     >
                         ✕
                     </button>
@@ -69,13 +85,13 @@ const SearchBarWithAutocomplete = ({ onSelect }) => {
                     top: '100%',
                     left: 0,
                     right: 0,
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.1)',
+                    backgroundColor: '#FFFFFF',
+                    border: '1px solid #E5E7E1',
+                    borderRadius: '10px',
+                    boxShadow: '0 12px 30px rgba(23, 74, 58, 0.12)',
                     listStyle: 'none',
-                    margin: '4px 0 0 0',
-                    padding: '4px 0',
+                    margin: '6px 0 0 0',
+                    padding: '6px 0',
                     zIndex: 1000,
                     maxHeight: '240px',
                     overflowY: 'auto'
@@ -85,20 +101,21 @@ const SearchBarWithAutocomplete = ({ onSelect }) => {
                             key={index}
                             onMouseDown={() => handleSelect(suggestion)}
                             style={{ 
-                                padding: '10px 14px', 
+                                padding: '10px 16px', 
                                 cursor: 'pointer', 
-                                borderBottom: index < suggestions.length - 1 ? '1px solid #f8fafc' : 'none',
+                                borderBottom: index < suggestions.length - 1 ? '1px solid #F0F1EC' : 'none',
                                 fontSize: '13px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '8px',
-                                color: '#1e293b'
+                                gap: '10px',
+                                color: '#252925',
+                                transition: 'background-color 0.15s ease'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0fdfa'}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FAF9F6'}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
-                            <span style={{ color: '#0d9488' }}>🔍</span>
-                            <span>{suggestion}</span>
+                            <span style={{ color: '#C5A46D', fontSize: '12px' }}>📍</span>
+                            <span style={{ fontWeight: 500 }}>{suggestion}</span>
                         </li>
                     ))}
                 </ul>

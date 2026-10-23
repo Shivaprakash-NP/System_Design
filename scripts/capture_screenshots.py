@@ -72,10 +72,7 @@ def capture():
         page.click("button:has-text('Receptionist')")
         time.sleep(0.5)
         page.click("button[type='submit']")
-        page.wait_for_url("**/search")
-        time.sleep(1)
-
-        page.goto(f"{BASE_URL}/reception")
+        page.wait_for_url("**/reception")
         time.sleep(2)
         page.screenshot(path=os.path.join(OUT_DIR, "reception_desk.png"))
 
@@ -111,10 +108,7 @@ def capture():
         page.click("button:has-text('Housekeeping')")
         time.sleep(0.5)
         page.click("button[type='submit']")
-        page.wait_for_url("**/search")
-        time.sleep(1)
-
-        page.goto(f"{BASE_URL}/housekeeping")
+        page.wait_for_url("**/housekeeping")
         time.sleep(2)
         page.screenshot(path=os.path.join(OUT_DIR, "housekeeping_dashboard.png"))
 

@@ -1,5 +1,8 @@
 package com.hotel.system.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,9 +20,13 @@ import java.time.LocalDateTime;
 @Document(collection = "invoices")
 public class Invoice {
     @Id
-    private Long invoiceId; // Generated via Snowflake
+    @JsonSerialize(using = ToStringSerializer.class)
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long invoiceId; // Generated via Snowflake (64-bit precision safe)
     
     @Indexed
+    @JsonSerialize(using = ToStringSerializer.class)
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long bookingId;
     
     @Indexed

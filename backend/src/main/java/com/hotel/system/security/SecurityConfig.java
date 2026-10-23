@@ -34,6 +34,8 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
+                // Allow all CORS preflight requests without authentication
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Public endpoints
                 .requestMatchers(
                     "/api/v1/auth/**",
@@ -50,6 +52,10 @@ public class SecurityConfig {
                 // Role-restricted endpoints
                 .requestMatchers("/api/v1/housekeeping/**").hasAnyAuthority("HOUSEKEEPING", "ADMIN")
                 .requestMatchers("/api/v1/reception/**").hasAnyAuthority("RECEPTIONIST", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/bookings").hasAnyAuthority("RECEPTIONIST", "ADMIN")
+                .requestMatchers("/api/v1/bookings/*/check-in").hasAnyAuthority("RECEPTIONIST", "ADMIN")
+                .requestMatchers("/api/v1/billing/checkout/**").hasAnyAuthority("RECEPTIONIST", "ADMIN")
+                .requestMatchers("/api/v1/billing/invoices").hasAnyAuthority("RECEPTIONIST", "ADMIN")
                 .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
                 // Authenticated endpoints (bookings, billing, notifications)
                 .anyRequest().authenticated()
@@ -63,16 +69,22 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin"));
-        configuration.setExposedHeaders(List.of("Authorization"));
+        // Allow any origin pattern (supports credentials while permitting all localhost/IP variations)
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Total-Count"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    @Bean
+    public org.springframework.web.filter.CorsFilter corsFilter() {
+        return new org.springframework.web.filter.CorsFilter(corsConfigurationSource());
     }
 
     @Bean

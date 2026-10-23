@@ -28,7 +28,14 @@ const Register = () => {
                 role
             });
             login(response.data);
-            navigate('/search');
+            const userRole = response.data?.role || role;
+            if (userRole === 'RECEPTIONIST') {
+                navigate('/reception');
+            } else if (userRole === 'HOUSEKEEPING') {
+                navigate('/housekeeping');
+            } else {
+                navigate('/search');
+            }
         } catch (err) {
             setError(err.response?.data?.error || 'Registration failed.');
         } finally {
@@ -37,70 +44,145 @@ const Register = () => {
     };
 
     return (
-        <div style={{ maxWidth: '440px', margin: '40px auto', padding: '28px', backgroundColor: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#0f172a', marginBottom: '8px' }}>Create an Account</h2>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>Register to book luxury stays or manage hotel operations.</p>
+        <div style={{ maxWidth: '460px', margin: '48px auto', padding: '36px 32px', backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: 'var(--shadow-md)', border: '1px solid var(--border-color, #E5E7E1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', justifyContent: 'center' }}>
+                <div style={{
+                    backgroundColor: 'var(--primary-brand, #174A3A)',
+                    color: 'var(--accent-gold, #C5A46D)',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 900,
+                    fontSize: '18px',
+                    fontFamily: 'Playfair Display, serif'
+                }}>
+                    B.
+                </div>
+                <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary, #252925)', letterSpacing: '-0.02em' }}>
+                    Booking.com
+                </span>
+            </div>
+
+            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginBottom: '6px', textAlign: 'center' }}>
+                Create an Account
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary, #70766F)', marginBottom: '24px', textAlign: 'center' }}>
+                Register to book luxury stays or manage hotel operations
+            </p>
 
             {error && (
-                <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: '6px', fontSize: '13px', marginBottom: '16px' }}>
+                <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: '8px', fontSize: '13px', marginBottom: '18px', border: '1px solid #fecaca' }}>
                     {error}
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Full Name</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Full Name
+                    </label>
                     <input 
                         type="text" 
                         placeholder="e.g. Ramesh Kumar" 
                         value={fullName} 
                         onChange={(e) => setFullName(e.target.value)} 
                         required 
-                        style={{ width: '100%' }}
+                        style={{ 
+                            width: '100%',
+                            padding: '11px 14px',
+                            fontSize: '13px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color, #E5E7E1)',
+                            backgroundColor: '#FFFFFF',
+                            color: 'var(--text-primary, #252925)'
+                        }}
                     />
                 </div>
 
                 <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Email Address</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Email Address
+                    </label>
                     <input 
                         type="email" 
                         placeholder="e.g. user@example.com" 
                         value={email} 
                         onChange={(e) => setEmail(e.target.value)} 
                         required 
-                        style={{ width: '100%' }}
+                        style={{ 
+                            width: '100%',
+                            padding: '11px 14px',
+                            fontSize: '13px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color, #E5E7E1)',
+                            backgroundColor: '#FFFFFF',
+                            color: 'var(--text-primary, #252925)'
+                        }}
                     />
                 </div>
 
                 <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Password</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Password
+                    </label>
                     <input 
                         type="password" 
                         placeholder="••••••••" 
                         value={password} 
                         onChange={(e) => setPassword(e.target.value)} 
                         required 
-                        style={{ width: '100%' }}
+                        style={{ 
+                            width: '100%',
+                            padding: '11px 14px',
+                            fontSize: '13px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color, #E5E7E1)',
+                            backgroundColor: '#FFFFFF',
+                            color: 'var(--text-primary, #252925)'
+                        }}
                     />
                 </div>
 
                 <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Phone Number</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Phone Number
+                    </label>
                     <input 
                         type="tel" 
                         placeholder="+91-9840112345" 
                         value={phoneNumber} 
                         onChange={(e) => setPhoneNumber(e.target.value)} 
-                        style={{ width: '100%' }}
+                        style={{ 
+                            width: '100%',
+                            padding: '11px 14px',
+                            fontSize: '13px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color, #E5E7E1)',
+                            backgroundColor: '#FFFFFF',
+                            color: 'var(--text-primary, #252925)'
+                        }}
                     />
                 </div>
 
                 <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>Account Role</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Account Role
+                    </label>
                     <select 
                         value={role} 
                         onChange={(e) => setRole(e.target.value)}
-                        style={{ width: '100%' }}
+                        style={{ 
+                            width: '100%',
+                            padding: '11px 14px',
+                            fontSize: '13px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color, #E5E7E1)',
+                            backgroundColor: '#FFFFFF',
+                            color: 'var(--text-primary, #252925)'
+                        }}
                     >
                         <option value="GUEST">Guest (Customer Booking)</option>
                         <option value="RECEPTIONIST">Receptionist (Front Desk)</option>
@@ -113,14 +195,14 @@ const Register = () => {
                     type="submit" 
                     className="btn-primary" 
                     disabled={loading}
-                    style={{ padding: '10px', fontSize: '14px', marginTop: '6px' }}
+                    style={{ padding: '12px', fontSize: '14px', marginTop: '6px' }}
                 >
                     {loading ? 'Creating Account...' : 'Register'}
                 </button>
             </form>
 
-            <p style={{ marginTop: '20px', fontSize: '13px', color: '#64748b', textAlign: 'center' }}>
-                Already registered? <Link to="/login" style={{ color: '#0d9488', fontWeight: 600 }}>Sign in</Link>
+            <p style={{ marginTop: '24px', fontSize: '13px', color: 'var(--text-secondary, #70766F)', textAlign: 'center' }}>
+                Already registered? <Link to="/login" style={{ color: 'var(--primary-brand, #174A3A)', fontWeight: 700, textDecoration: 'none' }}>Sign in</Link>
             </p>
         </div>
     );

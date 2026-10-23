@@ -14,7 +14,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -30,31 +34,48 @@ public class RoomService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Cache metrics
+    // Real cache metrics
     private final AtomicLong cacheHits = new AtomicLong(0);
     private final AtomicLong cacheMisses = new AtomicLong(0);
+    private final AtomicLong redisLookupTimeNanos = new AtomicLong(0);
+    private final AtomicLong mongoLookupTimeNanos = new AtomicLong(0);
     private final AtomicLong totalLookupTimeNanos = new AtomicLong(0);
 
     public List<Room> getAvailableRooms(String hotelId) {
+        return getAvailableRooms(hotelId, null);
+    }
+
+    public List<Room> getAvailableRooms(String hotelId, String sortBy) {
         long start = System.nanoTime();
         String cacheKey = "rooms:available:" + hotelId;
         
         try {
             String cachedRooms = redisTemplate.opsForValue().get(cacheKey);
             if (cachedRooms != null) {
+                long elapsed = System.nanoTime() - start;
                 cacheHits.incrementAndGet();
-                totalLookupTimeNanos.addAndGet(System.nanoTime() - start);
-                return objectMapper.readValue(cachedRooms,
+                redisLookupTimeNanos.addAndGet(elapsed);
+                totalLookupTimeNanos.addAndGet(elapsed);
+                List<Room> cachedList = objectMapper.readValue(cachedRooms,
                         objectMapper.getTypeFactory().constructCollectionType(List.class, Room.class));
+                return sortRooms(new java.util.ArrayList<>(cachedList), sortBy);
             }
         } catch (Exception e) {
             logger.warn("Redis cache read failed, falling back to database: {}", e.getMessage());
         }
 
         // Cache Miss: Query MongoDB
-        cacheMisses.incrementAndGet();
+        long mongoStart = System.nanoTime();
         List<Room> rooms = roomRepository.findByHotelIdAndIsAvailableTrue(hotelId);
-        totalLookupTimeNanos.addAndGet(System.nanoTime() - start);
+        if (rooms.isEmpty()) {
+            rooms = roomRepository.findByHotelId(hotelId);
+        }
+        long mongoElapsed = System.nanoTime() - mongoStart;
+        long totalElapsed = System.nanoTime() - start;
+
+        cacheMisses.incrementAndGet();
+        mongoLookupTimeNanos.addAndGet(mongoElapsed);
+        totalLookupTimeNanos.addAndGet(totalElapsed);
 
         try {
             redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(rooms), Duration.ofMinutes(10));
@@ -62,15 +83,58 @@ public class RoomService {
             logger.warn("Failed to write to Redis cache: {}", e.getMessage());
         }
 
-        return rooms;
+        return sortRooms(new java.util.ArrayList<>(rooms), sortBy);
     }
 
     public List<Room> getAvailableRoomsForDates(String hotelId, LocalDate checkIn, LocalDate checkOut) {
+        return getAvailableRoomsForDates(hotelId, checkIn, checkOut, null);
+    }
+
+    public List<Room> getAvailableRoomsForDates(String hotelId, LocalDate checkIn, LocalDate checkOut, String sortBy) {
         List<Room> allRooms = roomRepository.findByHotelId(hotelId);
 
-        return allRooms.stream()
+        List<Room> available = allRooms.stream()
                 .filter(room -> isRoomAvailableForDates(room.getId(), checkIn, checkOut))
                 .collect(Collectors.toList());
+
+        return sortRooms(available, sortBy);
+    }
+
+    public List<Room> sortRooms(List<Room> rooms, String sortBy) {
+        if (sortBy == null || rooms == null || rooms.isEmpty()) return rooms;
+        switch (sortBy.toLowerCase()) {
+            case "price_asc":
+            case "price-asc":
+                rooms.sort(java.util.Comparator.comparingDouble(Room::getPricePerNight));
+                break;
+            case "price_desc":
+            case "price-desc":
+                rooms.sort(java.util.Comparator.comparingDouble(Room::getPricePerNight).reversed());
+                break;
+            case "capacity_desc":
+            case "capacity-desc":
+            case "size_desc":
+                rooms.sort(java.util.Comparator.comparingInt(Room::getCapacity).reversed());
+                break;
+            case "capacity_asc":
+            case "capacity-asc":
+            case "size_asc":
+                rooms.sort(java.util.Comparator.comparingInt(Room::getCapacity));
+                break;
+            case "room_number":
+            case "roomnumber":
+                rooms.sort((r1, r2) -> {
+                    try {
+                        return Integer.compare(Integer.parseInt(r1.getRoomNumber()), Integer.parseInt(r2.getRoomNumber()));
+                    } catch (Exception e) {
+                        return r1.getRoomNumber().compareTo(r2.getRoomNumber());
+                    }
+                });
+                break;
+            default:
+                break;
+        }
+        return rooms;
     }
 
     public boolean isRoomAvailableForDates(String roomId, LocalDate checkIn, LocalDate checkOut) {
@@ -144,9 +208,116 @@ public class RoomService {
         return cacheMisses.get();
     }
 
+    public double getAverageRedisLatencyMs() {
+        long hits = cacheHits.get();
+        if (hits == 0) return 0.0;
+        return (redisLookupTimeNanos.get() / (double) hits) / 1_000_000.0;
+    }
+
+    public double getAverageMongoLatencyMs() {
+        long misses = cacheMisses.get();
+        if (misses == 0) return 0.0;
+        return (mongoLookupTimeNanos.get() / (double) misses) / 1_000_000.0;
+    }
+
     public double getAverageLookupLatencyMs() {
         long total = cacheHits.get() + cacheMisses.get();
         if (total == 0) return 0.0;
         return (totalLookupTimeNanos.get() / (double) total) / 1_000_000.0;
+    }
+
+    public void resetCacheMetrics() {
+        cacheHits.set(0);
+        cacheMisses.set(0);
+        redisLookupTimeNanos.set(0);
+        mongoLookupTimeNanos.set(0);
+        totalLookupTimeNanos.set(0);
+    }
+
+    public Map<String, Object> probeCache(String hotelId) {
+        if (hotelId == null || hotelId.trim().isEmpty()) {
+            hotelId = "hotel_101";
+        }
+        String cacheKey = "rooms:available:" + hotelId;
+        long start = System.nanoTime();
+        
+        try {
+            String cachedRooms = redisTemplate.opsForValue().get(cacheKey);
+            if (cachedRooms != null) {
+                long elapsedNanos = System.nanoTime() - start;
+                cacheHits.incrementAndGet();
+                redisLookupTimeNanos.addAndGet(elapsedNanos);
+                totalLookupTimeNanos.addAndGet(elapsedNanos);
+                double latencyMs = elapsedNanos / 1_000_000.0;
+                
+                List<Room> cachedList = objectMapper.readValue(cachedRooms,
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, Room.class));
+
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("key", cacheKey);
+                result.put("type", "HIT");
+                result.put("latency", String.format("%.3f ms", latencyMs));
+                result.put("latencyMs", latencyMs);
+                result.put("backend", "Redis In-Memory (Key-Value)");
+                result.put("cachedEntityCount", cachedList.size());
+                result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+                return result;
+            }
+        } catch (Exception e) {
+            logger.warn("Redis probe failed: {}", e.getMessage());
+        }
+
+        // Cache Miss -> Read MongoDB
+        long mongoStart = System.nanoTime();
+        List<Room> rooms = roomRepository.findByHotelIdAndIsAvailableTrue(hotelId);
+        if (rooms.isEmpty()) {
+            rooms = roomRepository.findByHotelId(hotelId);
+        }
+        long mongoElapsed = System.nanoTime() - mongoStart;
+        long totalElapsed = System.nanoTime() - start;
+
+        cacheMisses.incrementAndGet();
+        mongoLookupTimeNanos.addAndGet(mongoElapsed);
+        totalLookupTimeNanos.addAndGet(totalElapsed);
+        double latencyMs = totalElapsed / 1_000_000.0;
+
+        try {
+            redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(rooms), Duration.ofMinutes(10));
+        } catch (Exception e) {
+            logger.warn("Redis write failed: {}", e.getMessage());
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("key", cacheKey);
+        result.put("type", "MISS");
+        result.put("latency", String.format("%.3f ms", latencyMs));
+        result.put("latencyMs", latencyMs);
+        result.put("backend", "MongoDB Disk Fetch (WiredTiger)");
+        result.put("cachedEntityCount", rooms.size());
+        result.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+        return result;
+    }
+
+    public Map<String, Object> evictCache(String hotelId) {
+        if (hotelId == null || hotelId.trim().isEmpty()) {
+            hotelId = "hotel_101";
+        }
+        String cacheKey = "rooms:available:" + hotelId;
+        long start = System.nanoTime();
+        try {
+            Boolean deleted = redisTemplate.delete(cacheKey);
+            long elapsedNanos = System.nanoTime() - start;
+            double latencyMs = elapsedNanos / 1_000_000.0;
+            return Map.of(
+                    "key", cacheKey,
+                    "type", "PURGE",
+                    "latency", String.format("%.3f ms", latencyMs),
+                    "backend", "Redis DEL Mutation",
+                    "deleted", Boolean.TRUE.equals(deleted),
+                    "timestamp", LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+            );
+        } catch (Exception e) {
+            return Map.of("key", cacheKey, "type", "ERROR", "error", e.getMessage());
+        }
     }
 }

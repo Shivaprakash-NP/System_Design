@@ -1,5 +1,8 @@
 package com.hotel.system.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,7 +21,9 @@ import java.time.LocalDateTime;
 @Document(collection = "bookings")
 public class Booking {
     @Id
-    private Long id; // Generated via SnowflakeIdGenerator
+    @JsonSerialize(using = ToStringSerializer.class)
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long id; // Generated via SnowflakeIdGenerator (64-bit precision safe)
     
     @Indexed
     private String hotelId; // Shard key
@@ -38,7 +43,13 @@ public class Booking {
     private LocalDate checkOutDate;
     private long numberOfNights;
     private double pricePerNight;
-    private double totalAmount;
+    @Builder.Default
+    private double baseRoomAmount = 0.0;
+    @Builder.Default
+    private double taxAmount = 0.0; // 12% GST
+    @Builder.Default
+    private double serviceFee = 0.0;
+    private double totalAmount; // Total stay price including 12% GST and service fees
     
     @Indexed
     private String status; // CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED

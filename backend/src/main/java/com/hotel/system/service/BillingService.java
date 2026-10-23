@@ -49,10 +49,16 @@ public class BillingService {
         }
 
         // Calculate itemized charges
-        double roomCharges = booking.getTotalAmount();
-        double taxAmount = Math.round(roomCharges * 0.12 * 100.0) / 100.0; // 12% GST
-        double serviceCharges = 15.00;
-        double total = roomCharges + taxAmount + serviceCharges;
+        double roomCharges = booking.getBaseRoomAmount() > 0 
+                ? booking.getBaseRoomAmount() 
+                : (booking.getPricePerNight() * booking.getNumberOfNights());
+        double taxAmount = booking.getTaxAmount() > 0 
+                ? booking.getTaxAmount() 
+                : (Math.round(roomCharges * 0.12 * 100.0) / 100.0); // 12% GST
+        double serviceCharges = booking.getServiceFee() > 0 
+                ? booking.getServiceFee() 
+                : 15.00;
+        double total = Math.round((roomCharges + taxAmount + serviceCharges) * 100.0) / 100.0;
 
         long invoiceId = idGenerator.generateId();
         String shortCode = urlShortenerService.encode(invoiceId);

@@ -3,8 +3,10 @@ package com.hotel.system.service;
 import com.hotel.system.components.idgenerator.SnowflakeIdGenerator;
 import com.hotel.system.model.Booking;
 import com.hotel.system.model.Room;
+import com.hotel.system.model.User;
 import com.hotel.system.repository.BookingRepository;
 import com.hotel.system.repository.RoomRepository;
+import com.hotel.system.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +32,7 @@ public class BookingService {
 
     private final BookingRepository bookingRepository;
     private final RoomRepository roomRepository;
+    private final UserRepository userRepository;
     private final SnowflakeIdGenerator idGenerator;
     private final NotificationService notificationService;
     private final RoomService roomService;
@@ -127,9 +130,12 @@ public class BookingService {
                 }
             }
 
-            // Calculate nights and total amount
+            // Calculate nights and itemized amounts with 12% GST
             long nights = Math.max(1, ChronoUnit.DAYS.between(checkIn, checkOut));
-            double total = nights * room.getPricePerNight();
+            double roomCharges = nights * room.getPricePerNight();
+            double gstTax = Math.round(roomCharges * 0.12 * 100.0) / 100.0;
+            double serviceFee = 15.00;
+            double totalWithGst = Math.round((roomCharges + gstTax + serviceFee) * 100.0) / 100.0;
 
             long bookingId = idGenerator.generateId();
 
@@ -146,7 +152,10 @@ public class BookingService {
                     .checkOutDate(checkOut)
                     .numberOfNights(nights)
                     .pricePerNight(room.getPricePerNight())
-                    .totalAmount(total)
+                    .baseRoomAmount(roomCharges)
+                    .taxAmount(gstTax)
+                    .serviceFee(serviceFee)
+                    .totalAmount(totalWithGst)
                     .status("CONFIRMED")
                     .idempotencyKey(idempotencyKey != null ? idempotencyKey.trim() : null)
                     .createdAt(LocalDateTime.now())
@@ -158,13 +167,22 @@ public class BookingService {
             // Invalidate Redis cache
             roomService.evictHotelCache(room.getHotelId());
 
-            // Send notification
+            // Send notification to Guest
             notificationService.sendNotification(
                     saved.getGuestEmail(),
                     saved.getGuestName(),
                     "Reservation Confirmed #" + saved.getId(),
                     "Your booking for Room " + room.getRoomNumber() + " (" + room.getType() + ") from " 
-                            + checkIn + " to " + checkOut + " is confirmed. Total: $" + String.format("%.2f", total),
+                            + checkIn + " to " + checkOut + " is confirmed. Total: $" + String.format("%.2f", totalWithGst) + " (incl. 12% GST & fees).",
+                    "BOOKING_CONFIRMED",
+                    saved.getId()
+            );
+
+            // Send notification to Receptionists for Front Desk processing
+            notifyReceptionists(
+                    "New Reservation: Room " + room.getRoomNumber(),
+                    "Booking #" + saved.getId() + " confirmed for Room " + room.getRoomNumber() + " (" + room.getType() 
+                            + ") from " + checkIn + " to " + checkOut + ". Guest: " + saved.getGuestName() + ". Total: $" + String.format("%.2f", totalWithGst) + ".",
                     "BOOKING_CONFIRMED",
                     saved.getId()
             );
@@ -239,7 +257,43 @@ public class BookingService {
                 booking.getId()
         );
 
+        notifyReceptionists(
+                "Reservation Cancelled: Room " + booking.getRoomNumber(),
+                "Booking #" + booking.getId() + " for Room " + booking.getRoomNumber() + " has been cancelled by guest.",
+                "CANCELLED",
+                booking.getId()
+        );
+
         return saved;
+    }
+
+    private void notifyReceptionists(String title, String message, String type, Long referenceId) {
+        try {
+            List<User> receptionists = userRepository.findByRole("RECEPTIONIST");
+            if (receptionists != null && !receptionists.isEmpty()) {
+                for (User rec : receptionists) {
+                    notificationService.sendNotification(
+                            rec.getEmail(),
+                            rec.getFullName(),
+                            title,
+                            message,
+                            type,
+                            referenceId
+                    );
+                }
+            } else {
+                notificationService.sendNotification(
+                        "reception@hotel.demo",
+                        "Front Desk",
+                        title,
+                        message,
+                        type,
+                        referenceId
+                );
+            }
+        } catch (Exception e) {
+            logger.warn("Could not deliver notification to receptionists: {}", e.getMessage());
+        }
     }
 
     public Optional<Booking> getBookingById(Long id) {
@@ -247,14 +301,44 @@ public class BookingService {
     }
 
     public List<Booking> getBookingsByGuest(String guestId) {
-        return bookingRepository.findByGuestId(guestId);
+        List<Booking> list = new java.util.ArrayList<>(bookingRepository.findByGuestId(guestId));
+        list.sort((a, b) -> {
+            if (a.getCreatedAt() != null && b.getCreatedAt() != null) {
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            }
+            if (a.getId() != null && b.getId() != null) {
+                return b.getId().compareTo(a.getId());
+            }
+            return 0;
+        });
+        return list;
     }
 
     public List<Booking> getBookingsByGuestEmail(String email) {
-        return bookingRepository.findByGuestEmail(email);
+        List<Booking> list = new java.util.ArrayList<>(bookingRepository.findByGuestEmail(email));
+        list.sort((a, b) -> {
+            if (a.getCreatedAt() != null && b.getCreatedAt() != null) {
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            }
+            if (a.getId() != null && b.getId() != null) {
+                return b.getId().compareTo(a.getId());
+            }
+            return 0;
+        });
+        return list;
     }
 
     public List<Booking> getAllBookings() {
-        return bookingRepository.findAll();
+        List<Booking> list = new java.util.ArrayList<>(bookingRepository.findAll());
+        list.sort((a, b) -> {
+            if (a.getCreatedAt() != null && b.getCreatedAt() != null) {
+                return b.getCreatedAt().compareTo(a.getCreatedAt());
+            }
+            if (a.getId() != null && b.getId() != null) {
+                return b.getId().compareTo(a.getId());
+            }
+            return 0;
+        });
+        return list;
     }
 }

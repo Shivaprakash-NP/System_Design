@@ -94,24 +94,51 @@ public class ShardingService {
         return stats;
     }
 
-    public Map<String, Object> addShard(String newShardName) {
-        List<String> hotelIds = hotelRepository.findAll().stream().map(Hotel::getId).toList();
-        if (hotelIds.isEmpty()) {
-            hotelIds = List.of("hotel_101", "hotel_102", "hotel_201", "hotel_301", "hotel_401", "hotel_501", "hotel_601", "hotel_701");
+    public List<String> getAllRealDbKeys() {
+        List<String> realKeys = new ArrayList<>();
+        
+        // 1. Real Hotels stored in MongoDB
+        for (Hotel h : hotelRepository.findAll()) {
+            realKeys.add("hotel:" + h.getId() + " (" + h.getName() + ")");
         }
 
-        Map<String, Object> remappingResults = hashRing.measureRemapping(hotelIds, newShardName);
+        // 2. Real Rooms stored in MongoDB
+        for (Room r : roomRepository.findAll()) {
+            realKeys.add("room:" + r.getHotelId() + ":#" + r.getRoomNumber() + " [" + r.getType() + "]");
+        }
+
+        // 3. Real Bookings stored in MongoDB
+        for (Booking b : bookingRepository.findAll()) {
+            realKeys.add("booking:#" + b.getId() + " (" + b.getGuestName() + ")");
+        }
+
+        return realKeys;
+    }
+
+    public Map<String, Object> addShard(String newShardName) {
+        List<String> realKeys = getAllRealDbKeys();
+        Map<String, Object> remappingResults = hashRing.measureRemapping(realKeys, newShardName);
         remappingResults.put("action", "ADD_SHARD");
         remappingResults.put("newShardName", newShardName);
+        remappingResults.put("isRealDbData", true);
         return remappingResults;
     }
 
-    public Map<String, Object> removeShard(String shardName) {
-        hashRing.removeNode(shardName);
+    public Map<String, Object> resetRing() {
+        hashRing.resetToDefaults();
         return Map.of(
-                "action", "REMOVE_SHARD",
-                "removedShard", shardName,
-                "remainingShards", hashRing.getPhysicalNodes()
+                "action", "RESET_RING",
+                "activeShards", hashRing.getPhysicalNodes(),
+                "ringVisualNodes", hashRing.getRingGeometry()
         );
+    }
+
+    public Map<String, Object> removeShard(String shardName) {
+        List<String> realKeys = getAllRealDbKeys();
+        Map<String, Object> remappingResults = hashRing.measureRemoval(realKeys, shardName);
+        remappingResults.put("action", "REMOVE_SHARD");
+        remappingResults.put("removedShard", shardName);
+        remappingResults.put("isRealDbData", true);
+        return remappingResults;
     }
 }

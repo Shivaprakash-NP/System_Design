@@ -15,12 +15,15 @@ public class SearchController {
     private final AutocompleteService autocompleteService;
 
     @GetMapping("/autocomplete")
-    public ResponseEntity<Set<String>> getSuggestions(@RequestParam String q) {
-        if (q == null || q.trim().isEmpty()) {
-            return ResponseEntity.badRequest().build();
+    public ResponseEntity<Set<String>> getSuggestions(
+            @RequestParam(name = "query", required = false) String query,
+            @RequestParam(name = "q", required = false) String q) {
+        String search = (query != null && !query.trim().isEmpty()) ? query : q;
+        if (search == null || search.trim().isEmpty()) {
+            return ResponseEntity.ok(Set.of());
         }
         
-        Set<String> suggestions = autocompleteService.getSuggestions(q, 10);
+        Set<String> suggestions = autocompleteService.getSuggestions(search, 10);
         return ResponseEntity.ok(suggestions);
     }
 

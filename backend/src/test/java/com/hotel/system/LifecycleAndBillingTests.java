@@ -65,7 +65,9 @@ public class LifecycleAndBillingTests {
 
         assertEquals("CONFIRMED", booking.getStatus());
         double expectedRoomCharges = 3 * room.getPricePerNight();
-        assertEquals(expectedRoomCharges, booking.getTotalAmount(), 0.01);
+        double expectedGst = Math.round(expectedRoomCharges * 0.12 * 100.0) / 100.0;
+        double expectedTotal = expectedRoomCharges + expectedGst + 15.00;
+        assertEquals(expectedTotal, booking.getTotalAmount(), 0.01);
 
         // 1. Check In
         Booking checkedIn = bookingService.checkIn(booking.getId());

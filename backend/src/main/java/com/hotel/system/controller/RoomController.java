@@ -18,16 +18,19 @@ public class RoomController {
     private final RoomService roomService;
 
     @GetMapping("/available/{hotelId}")
-    public ResponseEntity<List<Room>> getAvailableRooms(@PathVariable String hotelId) {
-        return ResponseEntity.ok(roomService.getAvailableRooms(hotelId));
+    public ResponseEntity<List<Room>> getAvailableRooms(
+            @PathVariable String hotelId,
+            @RequestParam(required = false) String sortBy) {
+        return ResponseEntity.ok(roomService.getAvailableRooms(hotelId, sortBy));
     }
 
     @GetMapping("/available-dates")
     public ResponseEntity<List<Room>> getAvailableRoomsForDates(
             @RequestParam String hotelId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut) {
-        return ResponseEntity.ok(roomService.getAvailableRoomsForDates(hotelId, checkIn, checkOut));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
+            @RequestParam(required = false) String sortBy) {
+        return ResponseEntity.ok(roomService.getAvailableRoomsForDates(hotelId, checkIn, checkOut, sortBy));
     }
 
     @GetMapping("/{id}")

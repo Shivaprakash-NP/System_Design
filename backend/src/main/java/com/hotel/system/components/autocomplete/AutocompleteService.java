@@ -24,8 +24,10 @@ public class AutocompleteService {
     private final TrieNode root = new TrieNode();
 
     // Metrics
-    private final AtomicLong queryCount = new AtomicLong(0);
+    private final AtomicLong queryHits = new AtomicLong(0);
+    private final AtomicLong queryMisses = new AtomicLong(0);
     private final AtomicLong totalLatencyNanos = new AtomicLong(0);
+    private final AtomicLong indexedCount = new AtomicLong(0);
 
     public AutocompleteService(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -38,6 +40,7 @@ public class AutocompleteService {
 
         // 1. Add to local Trie
         insertIntoTrie(normalizedTerm, term.trim());
+        indexedCount.incrementAndGet();
 
         // 2. Add to Redis ZSet (full term with score 0 for lexicographical indexing)
         try {
@@ -64,7 +67,7 @@ public class AutocompleteService {
             );
 
             if (results != null && !results.isEmpty()) {
-                queryCount.incrementAndGet();
+                queryHits.incrementAndGet();
                 totalLatencyNanos.addAndGet(System.nanoTime() - start);
                 return results;
             }
@@ -74,19 +77,49 @@ public class AutocompleteService {
 
         // Fallback to in-memory Trie
         Set<String> trieResults = searchTrie(normalizedPrefix, maxResults);
-        queryCount.incrementAndGet();
-        totalLatencyNanos.addAndGet(System.nanoTime() - start);
-        return trieResults;
+        long elapsed = System.nanoTime() - start;
+        totalLatencyNanos.addAndGet(elapsed);
+
+        if (trieResults != null && !trieResults.isEmpty()) {
+            queryHits.incrementAndGet();
+            return trieResults;
+        } else {
+            queryMisses.incrementAndGet();
+            return Set.of();
+        }
     }
 
     public double getAverageLatencyMs() {
-        long count = queryCount.get();
-        if (count == 0) return 0.0;
-        return (totalLatencyNanos.get() / (double) count) / 1_000_000.0;
+        long total = queryHits.get() + queryMisses.get();
+        if (total == 0) return 0.0;
+        return (totalLatencyNanos.get() / (double) total) / 1_000_000.0;
     }
 
     public long getQueryCount() {
-        return queryCount.get();
+        return queryHits.get() + queryMisses.get();
+    }
+
+    public long getHits() {
+        return queryHits.get();
+    }
+
+    public long getMisses() {
+        return queryMisses.get();
+    }
+
+    public long getIndexSize() {
+        try {
+            Long count = redisTemplate.opsForZSet().zCard(AUTOCOMPLETE_KEY);
+            if (count != null && count > 0) return count;
+        } catch (Exception ignored) {
+        }
+        return indexedCount.get();
+    }
+
+    public void resetMetrics() {
+        queryHits.set(0);
+        queryMisses.set(0);
+        totalLatencyNanos.set(0);
     }
 
     // --- In-memory Trie Fallback Implementation ---

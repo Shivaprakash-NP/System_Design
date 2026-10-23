@@ -1,5 +1,6 @@
 package com.hotel.system.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,8 +27,25 @@ public class Room {
     private String type; // SINGLE, DOUBLE, SUITE, DELUXE
     private double pricePerNight;
     private int capacity;
+    
+    @JsonProperty("isAvailable")
     private boolean isAvailable;
+    
     private String housekeepingStatus; // CLEAN, DIRTY, CLEANING, INSPECTED
     private String assignedStaff;
     private List<String> amenities;
+
+    @JsonProperty("isAvailable")
+    public boolean getIsAvailable() {
+        return isAvailable;
+    }
+
+    @JsonProperty("available")
+    public boolean isAvailable() {
+        return isAvailable;
+    }
+
+    public void setAvailable(boolean available) {
+        this.isAvailable = available;
+    }
 }

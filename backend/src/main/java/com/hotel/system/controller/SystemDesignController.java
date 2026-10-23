@@ -47,6 +47,43 @@ public class SystemDesignController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/rate-limiter/test")
+    public ResponseEntity<Map<String, Object>> testRateLimiter(
+            @RequestParam(defaultValue = "sim_user") String clientId,
+            @RequestParam(defaultValue = "5") int burst,
+            @RequestParam(defaultValue = "10") int capacity,
+            @RequestParam(defaultValue = "2") int refillRate) {
+        
+        List<Map<String, Object>> results = new ArrayList<>();
+        int allowed = 0;
+        int rejected = 0;
+
+        for (int i = 0; i < burst; i++) {
+            boolean isAllowed = rateLimiter.isAllowed(clientId, capacity, refillRate);
+            if (isAllowed) allowed++;
+            else rejected++;
+
+            results.add(Map.of(
+                    "requestIndex", i + 1,
+                    "allowed", isAllowed,
+                    "status", isAllowed ? 200 : 429,
+                    "text", isAllowed ? "200 OK (Allowed by Token Bucket)" : "429 Rate Limit Exceeded (Tokens Depleted)",
+                    "timestamp", System.currentTimeMillis() + i
+            ));
+        }
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("clientId", clientId);
+        resp.put("burstCount", burst);
+        resp.put("allowedCount", allowed);
+        resp.put("rejectedCount", rejected);
+        resp.put("requests", results);
+        resp.put("capacity", capacity);
+        resp.put("refillRate", refillRate);
+        resp.put("backendEngine", "Redis Lua Atomic Script");
+        return ResponseEntity.ok(resp);
+    }
+
     // 2. Sharding Statistics
     @GetMapping("/sharding/stats")
     public ResponseEntity<Map<String, Object>> getShardingStats() {
@@ -63,6 +100,11 @@ public class SystemDesignController {
         return ResponseEntity.ok(shardingService.removeShard(shardName));
     }
 
+    @PostMapping("/sharding/reset")
+    public ResponseEntity<Map<String, Object>> resetSharding() {
+        return ResponseEntity.ok(shardingService.resetRing());
+    }
+
     // 3. Consistent Hashing Evaluation
     @GetMapping("/consistent-hashing/stats")
     public ResponseEntity<Map<String, Object>> getConsistentHashingStats() {
@@ -70,6 +112,7 @@ public class SystemDesignController {
         stats.put("physicalNodes", consistentHashRing.getPhysicalNodes());
         stats.put("virtualNodesCount", consistentHashRing.getRingSize());
         stats.put("virtualNodesPerPhysical", 100);
+        stats.put("ringVisualNodes", consistentHashRing.getRingGeometry());
         return ResponseEntity.ok(stats);
     }
 
@@ -78,9 +121,9 @@ public class SystemDesignController {
             @RequestParam(defaultValue = "node_delta") String newNode,
             @RequestParam(defaultValue = "100") int sampleKeysCount) {
         
-        List<String> keys = new ArrayList<>();
-        for (int i = 0; i < sampleKeysCount; i++) {
-            keys.add("hotel_key_" + i);
+        List<String> keys = shardingService.getAllRealDbKeys();
+        if (keys.isEmpty()) {
+            keys.add("hotel:hotel_101 (SSN Grand Hotel)");
         }
         return ResponseEntity.ok(consistentHashRing.measureRemapping(keys, newNode));
     }
@@ -98,9 +141,27 @@ public class SystemDesignController {
         stats.put("cacheMisses", misses);
         stats.put("totalLookups", total);
         stats.put("hitRatioPercentage", String.format("%.2f%%", hitRatio));
+        stats.put("redisAverageLatencyMs", String.format("%.3f ms", roomService.getAverageRedisLatencyMs()));
+        stats.put("mongoAverageLatencyMs", String.format("%.3f ms", roomService.getAverageMongoLatencyMs()));
         stats.put("averageLookupLatencyMs", String.format("%.3f ms", roomService.getAverageLookupLatencyMs()));
-        stats.put("cacheBackend", "Redis 7.0 (with MongoDB fallback)");
+        stats.put("cacheBackend", "Redis 7.0 In-Memory Store (with MongoDB WiredTiger Fallback)");
         return ResponseEntity.ok(stats);
+    }
+
+    @PostMapping("/cache/probe")
+    public ResponseEntity<Map<String, Object>> probeCache(@RequestParam(defaultValue = "hotel_101") String hotelId) {
+        return ResponseEntity.ok(roomService.probeCache(hotelId));
+    }
+
+    @PostMapping("/cache/evict")
+    public ResponseEntity<Map<String, Object>> evictCache(@RequestParam(defaultValue = "hotel_101") String hotelId) {
+        return ResponseEntity.ok(roomService.evictCache(hotelId));
+    }
+
+    @PostMapping("/cache/reset")
+    public ResponseEntity<Void> resetCacheMetrics() {
+        roomService.resetCacheMetrics();
+        return ResponseEntity.ok().build();
     }
 
     // 5. Unique ID Generator Collision & Performance Test
@@ -160,6 +221,20 @@ public class SystemDesignController {
     }
 
     // 7. Web Crawler Execution & Stats
+    @PostMapping("/crawler/crawl")
+    public ResponseEntity<ExternalHotelCrawler.CrawlReport> crawlUrl(@RequestBody(required = false) Map<String, Object> request) {
+        String seedUrl = (request != null && request.containsKey("seedUrl"))
+                ? (String) request.get("seedUrl")
+                : "https://example.com";
+        int maxPages = (request != null && request.get("maxPages") != null)
+                ? Integer.parseInt(request.get("maxPages").toString())
+                : 5;
+        int maxDepth = (request != null && request.get("maxDepth") != null)
+                ? Integer.parseInt(request.get("maxDepth").toString())
+                : 2;
+        return ResponseEntity.ok(externalHotelCrawler.crawlUrl(seedUrl, maxPages, maxDepth));
+    }
+
     @PostMapping("/crawler/run")
     public ResponseEntity<Map<String, Object>> runCrawler() {
         return ResponseEntity.ok(externalHotelCrawler.runCrawl());
@@ -178,10 +253,25 @@ public class SystemDesignController {
     // 8. Autocomplete Stats
     @GetMapping("/autocomplete/stats")
     public ResponseEntity<Map<String, Object>> getAutocompleteStats() {
+        long hits = autocompleteService.getHits();
+        long misses = autocompleteService.getMisses();
+        long total = hits + misses;
+        double hitRatio = total > 0 ? (hits * 100.0 / total) : 0.0;
+
         Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("queryCount", autocompleteService.getQueryCount());
+        stats.put("queryCount", total);
+        stats.put("hits", hits);
+        stats.put("misses", misses);
+        stats.put("hitRatioPercentage", String.format("%.2f%%", hitRatio));
         stats.put("averageLatencyMs", String.format("%.3f ms", autocompleteService.getAverageLatencyMs()));
+        stats.put("indexedTermsCount", autocompleteService.getIndexSize());
         stats.put("algorithm", "Redis ZSet Lexicographical Range with In-Memory Trie Fallback");
         return ResponseEntity.ok(stats);
+    }
+
+    @PostMapping("/autocomplete/reset")
+    public ResponseEntity<Void> resetAutocompleteMetrics() {
+        autocompleteService.resetMetrics();
+        return ResponseEntity.ok().build();
     }
 }

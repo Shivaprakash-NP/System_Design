@@ -11,6 +11,8 @@ const RoomSearch = () => {
     const [hotels, setHotels] = useState([]);
     const [selectedHotel, setSelectedHotel] = useState(null);
     const [rooms, setRooms] = useState([]);
+    const [roomSortBy, setRoomSortBy] = useState('price-asc');
+    const [roomTypeFilter, setRoomTypeFilter] = useState('ALL');
     const [cityFilter, setCityFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -54,14 +56,17 @@ const RoomSearch = () => {
                 params: {
                     hotelId: selectedHotel.id,
                     checkIn: checkInDate,
-                    checkOut: checkOutDate
+                    checkOut: checkOutDate,
+                    sortBy: roomSortBy
                 }
             });
             setRooms(res.data);
         } catch (err) {
             // Fallback to general available rooms
             try {
-                const res2 = await api.get(`/rooms/available/${selectedHotel.id}`);
+                const res2 = await api.get(`/rooms/available/${selectedHotel.id}`, {
+                    params: { sortBy: roomSortBy }
+                });
                 setRooms(res2.data);
             } catch (e) {
                 console.error(e);
@@ -73,7 +78,39 @@ const RoomSearch = () => {
         if (selectedHotel) {
             fetchRooms();
         }
-    }, [selectedHotel, checkInDate, checkOutDate]);
+    }, [selectedHotel, checkInDate, checkOutDate, roomSortBy]);
+
+    // Client-side instant sorting and filtering
+    const sortedAndFilteredRooms = React.useMemo(() => {
+        let list = [...rooms];
+        if (roomTypeFilter !== 'ALL') {
+            list = list.filter(r => r.type?.toUpperCase() === roomTypeFilter.toUpperCase());
+        }
+        switch (roomSortBy) {
+            case 'price-asc':
+                list.sort((a, b) => a.pricePerNight - b.pricePerNight);
+                break;
+            case 'price-desc':
+                list.sort((a, b) => b.pricePerNight - a.pricePerNight);
+                break;
+            case 'capacity-desc':
+                list.sort((a, b) => (b.capacity || 2) - (a.capacity || 2));
+                break;
+            case 'capacity-asc':
+                list.sort((a, b) => (a.capacity || 2) - (b.capacity || 2));
+                break;
+            case 'roomNumber-asc':
+                list.sort((a, b) => {
+                    const numA = parseInt(a.roomNumber, 10);
+                    const numB = parseInt(b.roomNumber, 10);
+                    return (!isNaN(numA) && !isNaN(numB)) ? numA - numB : String(a.roomNumber).localeCompare(String(b.roomNumber));
+                });
+                break;
+            default:
+                break;
+        }
+        return list;
+    }, [rooms, roomSortBy, roomTypeFilter]);
 
     // Calculate nights & estimated totals
     const calculateNights = () => {
@@ -121,155 +158,399 @@ const RoomSearch = () => {
         }
     };
 
-    return (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '16px' }}>
-            {/* Header & Search Bar */}
-            <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
-                <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>Discover & Book Luxury Accommodations</h1>
-                <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>Powered by Redis Cache, Autocomplete & Distributed Invariant Protection</p>
+    // Fallback photography by room type
+    const getRoomPhoto = (type) => {
+        const t = (type || '').toUpperCase();
+        if (t.includes('SUITE')) return 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=80';
+        if (t.includes('DELUXE')) return 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=600&q=80';
+        if (t.includes('DOUBLE')) return 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=600&q=80';
+        return 'https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=600&q=80';
+    };
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
+    return (
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 20px 48px' }}>
+            {/* Editorial Hero & Search Bar */}
+            <div style={{ 
+                backgroundColor: 'var(--surface, #ffffff)', 
+                padding: '28px 32px', 
+                borderRadius: '16px', 
+                border: '1px solid var(--border-color, #E5E7E1)', 
+                marginBottom: '28px', 
+                boxShadow: 'var(--shadow-sm)'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+                    <div>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '100px', backgroundColor: 'var(--surface-muted, #F0F1EC)', color: 'var(--primary-brand, #174A3A)', fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
+                            <span>✦</span> Curated Accommodations
+                        </div>
+                        <h1 style={{ fontFamily: 'Playfair Display, Cinzel, serif', fontSize: '28px', fontWeight: 700, color: 'var(--text-primary, #252925)', margin: 0, letterSpacing: '-0.02em' }}>
+                            Find Your Next Stay
+                        </h1>
+                        <p style={{ fontSize: '14px', color: 'var(--text-secondary, #70766F)', margin: '6px 0 0', fontWeight: 400 }}>
+                            Search low prices on luxury suites, boutique properties, and premier accommodations across India
+                        </p>
+                    </div>
+
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'rgba(197, 164, 109, 0.12)', border: '1px solid rgba(197, 164, 109, 0.3)', color: '#8c6b2d', fontSize: '12px', fontWeight: 600 }}>
+                        <span>⚡</span> Best Rates with 12% GST Clarity
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
                     <SearchBarWithAutocomplete onSelect={(term) => setSearchQuery(term)} />
 
                     <select 
                         value={cityFilter} 
                         onChange={(e) => setCityFilter(e.target.value)}
-                        style={{ padding: '10px 14px', fontSize: '14px', minWidth: '160px' }}
+                        style={{ 
+                            padding: '10px 14px', 
+                            fontSize: '13px', 
+                            minWidth: '150px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--border-color, #E5E7E1)',
+                            backgroundColor: '#FFFFFF',
+                            color: 'var(--text-primary, #252925)',
+                            fontWeight: 500
+                        }}
                     >
-                        <option value="">All Cities</option>
+                        <option value="">All Destinations</option>
                         <option value="Chennai">Chennai</option>
                         <option value="Mumbai">Mumbai</option>
                         <option value="Bengaluru">Bengaluru</option>
                     </select>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Check-In:</label>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #70766F)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Check-In:</label>
                         <input 
                             type="date" 
                             value={checkInDate} 
                             min={today}
                             onChange={(e) => setCheckInDate(e.target.value)} 
+                            style={{
+                                padding: '9px 12px',
+                                fontSize: '13px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-color, #E5E7E1)',
+                                backgroundColor: '#FFFFFF',
+                                color: 'var(--text-primary, #252925)',
+                                fontWeight: 500
+                            }}
                         />
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <label style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>Check-Out:</label>
+                        <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #70766F)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Check-Out:</label>
                         <input 
                             type="date" 
                             value={checkOutDate} 
                             min={checkInDate}
                             onChange={(e) => setCheckOutDate(e.target.value)} 
+                            style={{
+                                padding: '9px 12px',
+                                fontSize: '13px',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-color, #E5E7E1)',
+                                backgroundColor: '#FFFFFF',
+                                color: 'var(--text-primary, #252925)',
+                                fontWeight: 500
+                            }}
                         />
                     </div>
                 </div>
             </div>
 
             {/* Hotel Cards Carousel / Grid */}
-            <div style={{ marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#0f172a', marginBottom: '12px' }}>Featured Hotels ({hotels.length})</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
-                    {hotels.map(h => (
-                        <div 
-                            key={h.id}
-                            onClick={() => setSelectedHotel(h)}
-                            style={{
-                                backgroundColor: '#ffffff',
-                                borderRadius: '10px',
-                                border: selectedHotel?.id === h.id ? '2px solid #0d9488' : '1px solid #e2e8f0',
-                                overflow: 'hidden',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                boxShadow: selectedHotel?.id === h.id ? '0 4px 12px rgba(13,148,136,0.15)' : 'none'
-                            }}
-                        >
-                            <img 
-                                src={h.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500'} 
-                                alt={h.name} 
-                                style={{ width: '100%', height: '140px', objectFit: 'cover' }} 
-                            />
-                            <div style={{ padding: '12px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>{h.name}</h3>
-                                    <span style={{ fontSize: '12px', color: '#d97706', fontWeight: 700 }}>★ {h.rating}</span>
-                                </div>
-                                <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>📍 {h.city}</p>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
-                                    {h.amenities?.slice(0, 3).map((a, i) => (
-                                        <span key={i} style={{ fontSize: '10px', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#475569' }}>
-                                            {a}
+            <div style={{ marginBottom: '32px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
+                    <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', fontWeight: 700, color: 'var(--text-primary, #252925)', margin: 0 }}>
+                        Featured Hotels ({hotels.length})
+                    </h2>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary, #70766F)' }}>
+                        Select a property to view live suite availability
+                    </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '18px' }}>
+                    {hotels.map(h => {
+                        const isSelected = selectedHotel?.id === h.id;
+                        return (
+                            <div 
+                                key={h.id}
+                                onClick={() => setSelectedHotel(h)}
+                                style={{
+                                    backgroundColor: 'var(--surface, #ffffff)',
+                                    borderRadius: '12px',
+                                    border: isSelected ? '2px solid var(--primary-brand, #174A3A)' : '1px solid var(--border-color, #E5E7E1)',
+                                    overflow: 'hidden',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: isSelected ? '0 8px 24px rgba(23, 74, 58, 0.14)' : 'var(--shadow-sm)',
+                                    transform: isSelected ? 'translateY(-2px)' : 'none'
+                                }}
+                            >
+                                <div style={{ position: 'relative', width: '100%', height: '160px', overflow: 'hidden' }}>
+                                    <img 
+                                        src={h.imageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=600&q=80'} 
+                                        alt={h.name} 
+                                        loading="lazy"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }} 
+                                    />
+                                    <span style={{ 
+                                        position: 'absolute', 
+                                        top: '10px', 
+                                        right: '10px', 
+                                        backgroundColor: 'rgba(23, 74, 58, 0.92)', 
+                                        color: '#FFFFFF', 
+                                        fontSize: '11px', 
+                                        fontWeight: 700, 
+                                        padding: '3px 8px', 
+                                        borderRadius: '6px',
+                                        letterSpacing: '0.02em',
+                                        backdropFilter: 'blur(4px)'
+                                    }}>
+                                        ★ {h.rating || '4.8'}
+                                    </span>
+                                    {isSelected && (
+                                        <span style={{
+                                            position: 'absolute',
+                                            bottom: '10px',
+                                            left: '10px',
+                                            backgroundColor: 'var(--accent-gold, #C5A46D)',
+                                            color: '#1a1814',
+                                            fontSize: '10px',
+                                            fontWeight: 700,
+                                            padding: '2px 8px',
+                                            borderRadius: '4px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.06em'
+                                        }}>
+                                            Active Selection
                                         </span>
-                                    ))}
+                                    )}
+                                </div>
+
+                                <div style={{ padding: '16px' }}>
+                                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary, #252925)', margin: 0, letterSpacing: '-0.01em' }}>
+                                        {h.name}
+                                    </h3>
+                                    <p style={{ fontSize: '12px', color: 'var(--text-secondary, #70766F)', margin: '4px 0 10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ color: 'var(--accent-gold, #C5A46D)' }}>📍</span> {h.city}
+                                    </p>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                        {h.amenities?.slice(0, 3).map((a, i) => (
+                                            <span key={i} style={{ 
+                                                fontSize: '10px', 
+                                                backgroundColor: 'var(--surface-muted, #F0F1EC)', 
+                                                padding: '3px 7px', 
+                                                borderRadius: '4px', 
+                                                color: 'var(--text-secondary, #70766F)',
+                                                fontWeight: 600
+                                            }}>
+                                                {a}
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
 
             {/* Room Availability Section */}
             {selectedHotel && (
-                <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ 
+                    backgroundColor: 'var(--surface, #ffffff)', 
+                    padding: '28px 32px', 
+                    borderRadius: '16px', 
+                    border: '1px solid var(--border-color, #E5E7E1)',
+                    boxShadow: 'var(--shadow-sm)'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
                         <div>
-                            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--primary-brand, #174A3A)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
+                                Property Inventory
+                            </div>
+                            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '22px', fontWeight: 700, color: 'var(--text-primary, #252925)', margin: 0 }}>
                                 Available Rooms at {selectedHotel.name}
                             </h2>
-                            <p style={{ fontSize: '13px', color: '#64748b' }}>
-                                Dates: {checkInDate} to {checkOutDate} ({calculateNights()} night{calculateNights() > 1 ? 's' : ''})
+                            <p style={{ fontSize: '13px', color: 'var(--text-secondary, #70766F)', margin: '4px 0 0' }}>
+                                Dates: <strong>{checkInDate}</strong> to <strong>{checkOutDate}</strong> ({calculateNights()} night{calculateNights() > 1 ? 's' : ''}) • {sortedAndFilteredRooms.length} room{sortedAndFilteredRooms.length !== 1 ? 's' : ''} available
                             </p>
                         </div>
-                        <span style={{ fontSize: '12px', backgroundColor: '#f0fdfa', color: '#0d9488', padding: '4px 10px', borderRadius: '6px', fontWeight: 600 }}>
-                            ⚡ Cached via Redis Key-Value Store
+                        <span style={{ 
+                            fontSize: '12px', 
+                            backgroundColor: 'rgba(23, 74, 58, 0.08)', 
+                            color: 'var(--primary-brand, #174A3A)', 
+                            border: '1px solid rgba(23, 74, 58, 0.18)', 
+                            padding: '6px 12px', 
+                            borderRadius: '8px', 
+                            fontWeight: 600,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                        }}>
+                            <span>⚡</span> Cached via Redis Key-Value Store
                         </span>
                     </div>
 
-                    {rooms.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                            <p style={{ fontSize: '16px' }}>No rooms available for the selected dates.</p>
-                            <p style={{ fontSize: '13px', marginTop: '4px' }}>Try selecting different dates or another hotel.</p>
+                    {/* Room Sorting & Filtering Toolbar */}
+                    <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        flexWrap: 'wrap', 
+                        gap: '14px', 
+                        padding: '12px 18px', 
+                        backgroundColor: 'var(--surface-muted, #F0F1EC)', 
+                        borderRadius: '10px', 
+                        border: '1px solid var(--border-color, #E5E7E1)', 
+                        marginBottom: '24px' 
+                    }}>
+                        {/* Quick Type Filter Chips */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)', marginRight: '4px' }}>Filter:</span>
+                            {['ALL', 'SINGLE', 'DOUBLE', 'DELUXE', 'SUITE'].map(type => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setRoomTypeFilter(type)}
+                                    className={`tab-pill ${roomTypeFilter === type ? 'active' : ''}`}
+                                    style={{ fontSize: '12px', padding: '5px 12px' }}
+                                >
+                                    {type === 'ALL' ? 'All Types' : type}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Room Sorting Options */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <label htmlFor="room-sort-select" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary, #252925)' }}>
+                                Sort By:
+                            </label>
+                            <select
+                                id="room-sort-select"
+                                value={roomSortBy}
+                                onChange={(e) => setRoomSortBy(e.target.value)}
+                                style={{
+                                    padding: '7px 14px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-color, #E5E7E1)',
+                                    backgroundColor: '#ffffff',
+                                    color: 'var(--text-primary, #252925)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <option value="price-asc">💰 Price: Low to High</option>
+                                <option value="price-desc">💎 Price: High to Low</option>
+                                <option value="capacity-desc">👥 Room Size / Capacity: Largest First</option>
+                                <option value="capacity-asc">👤 Room Size / Capacity: Smallest First</option>
+                                <option value="roomNumber-asc">🚪 Room Number: Ascending</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {sortedAndFilteredRooms.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-secondary, #70766F)' }}>
+                            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🛎️</div>
+                            <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary, #252925)' }}>No suites match the selected criteria.</p>
+                            <p style={{ fontSize: '13px', marginTop: '4px' }}>Try switching the room type filter or selecting different dates.</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                            {rooms.map(room => (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                            {sortedAndFilteredRooms.map(room => (
                                 <div 
                                     key={room.id}
                                     style={{
-                                        border: '1px solid #e2e8f0',
-                                        borderRadius: '8px',
-                                        padding: '16px',
+                                        border: '1px solid var(--border-color, #E5E7E1)',
+                                        borderRadius: '12px',
                                         backgroundColor: '#ffffff',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        justifyContent: 'space-between'
+                                        justifyContent: 'space-between',
+                                        boxShadow: 'var(--shadow-sm)',
+                                        overflow: 'hidden',
+                                        transition: 'transform 0.2s ease, box-shadow 0.2s ease'
                                     }}
                                 >
-                                    <div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                            <span style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                                                Room {room.roomNumber}
+                                    {/* Room Card Thumbnail */}
+                                    <div style={{ position: 'relative', height: '140px', width: '100%', overflow: 'hidden' }}>
+                                        <img 
+                                            src={getRoomPhoto(room.type)} 
+                                            alt={`${room.type} Room ${room.roomNumber}`}
+                                            loading="lazy"
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        />
+                                        <span style={{
+                                            position: 'absolute',
+                                            top: '10px',
+                                            left: '10px',
+                                            backgroundColor: 'rgba(23, 74, 58, 0.9)',
+                                            color: '#FFFFFF',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            padding: '3px 8px',
+                                            borderRadius: '6px',
+                                            letterSpacing: '0.04em'
+                                        }}>
+                                            Room {room.roomNumber}
+                                        </span>
+                                        <span 
+                                            className={`badge badge-${room.housekeepingStatus?.toLowerCase() || 'clean'}`}
+                                            style={{ position: 'absolute', top: '10px', right: '10px' }}
+                                        >
+                                            {room.housekeepingStatus}
+                                        </span>
+                                    </div>
+
+                                    <div style={{ padding: '16px 18px 12px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--primary-brand, #174A3A)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                {room.type} SUITE
                                             </span>
-                                            <span className={`badge badge-${room.housekeepingStatus?.toLowerCase() || 'clean'}`}>
-                                                {room.housekeepingStatus}
+                                            <span style={{ fontSize: '12px', color: 'var(--text-secondary, #70766F)', fontWeight: 500 }}>
+                                                👥 Max {room.capacity || 1} Guest{(room.capacity || 1) > 1 ? 's' : ''}
                                             </span>
                                         </div>
 
-                                        <p style={{ fontSize: '13px', fontWeight: 600, color: '#0d9488' }}>{room.type} SUITE</p>
-                                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Max Occupancy: {room.capacity || 2} Guests</p>
-
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '10px 0' }}>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', margin: '10px 0 4px' }}>
                                             {room.amenities?.map((am, idx) => (
-                                                <span key={idx} style={{ fontSize: '11px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 6px', borderRadius: '4px', color: '#475569' }}>
+                                                <span key={idx} style={{ 
+                                                    fontSize: '11px', 
+                                                    backgroundColor: 'var(--surface-muted, #F0F1EC)', 
+                                                    border: '1px solid var(--border-color, #E5E7E1)', 
+                                                    padding: '2px 7px', 
+                                                    borderRadius: '4px', 
+                                                    color: 'var(--text-secondary, #70766F)' 
+                                                }}>
                                                     ✓ {am}
                                                 </span>
                                             ))}
                                         </div>
                                     </div>
 
-                                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ 
+                                        padding: '14px 18px', 
+                                        backgroundColor: '#FAFAF8',
+                                        borderTop: '1px solid var(--border-color, #E5E7E1)', 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center' 
+                                    }}>
                                         <div>
-                                            <span style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>${room.pricePerNight}</span>
-                                            <span style={{ fontSize: '12px', color: '#94a3b8' }}> / night</span>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
+                                                <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-primary, #252925)' }}>
+                                                    ${room.pricePerNight}
+                                                </span>
+                                                <span style={{ fontSize: '11px', color: 'var(--text-secondary, #70766F)' }}>/ night</span>
+                                            </div>
+                                            <span style={{ fontSize: '10px', color: 'var(--accent-gold, #C5A46D)', fontWeight: 600 }}>
+                                                + 12% GST applicable
+                                            </span>
                                         </div>
+
                                         <button 
                                             onClick={() => {
                                                 setSelectedRoom(room);
@@ -277,7 +558,7 @@ const RoomSearch = () => {
                                                 setBookingError('');
                                             }}
                                             className="btn-primary"
-                                            style={{ padding: '8px 14px', fontSize: '13px' }}
+                                            style={{ padding: '8px 16px', fontSize: '13px' }}
                                         >
                                             Reserve Room
                                         </button>
@@ -294,56 +575,97 @@ const RoomSearch = () => {
                 <div style={{
                     position: 'fixed',
                     top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    backgroundColor: 'rgba(23, 74, 58, 0.45)',
+                    backdropFilter: 'blur(4px)',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    zIndex: 1000
+                    zIndex: 1000,
+                    padding: '16px'
                 }}>
                     <div style={{
                         backgroundColor: '#ffffff',
-                        borderRadius: '12px',
-                        padding: '28px',
-                        width: '90%',
-                        maxWidth: '460px',
-                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)'
+                        borderRadius: '16px',
+                        padding: '30px',
+                        width: '100%',
+                        maxWidth: '480px',
+                        boxShadow: 'var(--shadow-xl)',
+                        border: '1px solid var(--border-color, #E5E7E1)'
                     }}>
                         {!bookingSuccess ? (
                             <>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Confirm Stay Reservation</h3>
-                                    <button onClick={() => setSelectedRoom(null)} style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+                                    <div>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent-gold, #C5A46D)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                            Reservation Checkout
+                                        </div>
+                                        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', fontWeight: 700, color: 'var(--text-primary, #252925)', margin: '2px 0 0' }}>
+                                            Confirm Stay Reservation
+                                        </h3>
+                                    </div>
+                                    <button 
+                                        onClick={() => setSelectedRoom(null)} 
+                                        style={{ 
+                                            background: 'var(--surface-muted, #F0F1EC)', 
+                                            border: 'none', 
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            fontSize: '14px', 
+                                            color: 'var(--text-secondary, #70766F)',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        ✕
+                                    </button>
                                 </div>
 
-                                <div style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-                                    <p><strong>Hotel:</strong> {selectedHotel?.name}</p>
-                                    <p><strong>Room:</strong> #{selectedRoom.roomNumber} ({selectedRoom.type})</p>
-                                    <p><strong>Dates:</strong> {checkInDate} to {checkOutDate} ({calculateNights()} night{calculateNights() > 1 ? 's' : ''})</p>
-                                    <p><strong>Guest:</strong> {user?.fullName || 'John Guest'} ({user?.email || 'guest@hotel.demo'})</p>
+                                <div style={{ backgroundColor: 'var(--surface-muted, #F0F1EC)', padding: '16px', borderRadius: '10px', marginBottom: '18px', fontSize: '13px', border: '1px solid var(--border-color, #E5E7E1)' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        <div>
+                                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #70766F)', display: 'block' }}>HOTEL PROPERTY</span>
+                                            <strong style={{ color: 'var(--text-primary, #252925)' }}>{selectedHotel?.name}</strong>
+                                        </div>
+                                        <div>
+                                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #70766F)', display: 'block' }}>ROOM SUITE</span>
+                                            <strong style={{ color: 'var(--text-primary, #252925)' }}>#{selectedRoom.roomNumber} ({selectedRoom.type})</strong>
+                                        </div>
+                                        <div style={{ gridColumn: 'span 2', marginTop: '4px' }}>
+                                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #70766F)', display: 'block' }}>DATES OF STAY</span>
+                                            <strong style={{ color: 'var(--text-primary, #252925)' }}>{checkInDate} to {checkOutDate} ({calculateNights()} night{calculateNights() > 1 ? 's' : ''})</strong>
+                                        </div>
+                                        <div style={{ gridColumn: 'span 2' }}>
+                                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #70766F)', display: 'block' }}>REGISTERED GUEST</span>
+                                            <span style={{ color: 'var(--text-primary, #252925)' }}>{user?.fullName || 'John Guest'} ({user?.email || 'guest@hotel.demo'})</span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* Price Breakdown */}
-                                <div style={{ borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', padding: '12px 0', marginBottom: '16px', fontSize: '13px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <span>Room Charges ({calculateNights()} × ${selectedRoom.pricePerNight}):</span>
-                                        <span>${(calculateNights() * selectedRoom.pricePerNight).toFixed(2)}</span>
+                                <div style={{ borderTop: '1px solid var(--border-color, #E5E7E1)', borderBottom: '1px solid var(--border-color, #E5E7E1)', padding: '14px 0', marginBottom: '18px', fontSize: '13px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                        <span style={{ color: 'var(--text-secondary, #70766F)' }}>Room Charges ({calculateNights()} × ${selectedRoom.pricePerNight}):</span>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-primary, #252925)' }}>${(calculateNights() * selectedRoom.pricePerNight).toFixed(2)}</span>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#64748b' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-secondary, #70766F)' }}>
                                         <span>Estimated Taxes (12% GST):</span>
-                                        <span>${(calculateNights() * selectedRoom.pricePerNight * 0.12).toFixed(2)}</span>
+                                        <span style={{ fontWeight: 600, color: 'var(--accent-gold, #C5A46D)' }}>${(calculateNights() * selectedRoom.pricePerNight * 0.12).toFixed(2)}</span>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#64748b' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-secondary, #70766F)' }}>
                                         <span>Service Charges:</span>
-                                        <span>$15.00</span>
+                                        <span style={{ fontWeight: 600, color: 'var(--text-primary, #252925)' }}>$15.00</span>
                                     </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '15px', color: '#0f172a', marginTop: '6px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '16px', color: 'var(--primary-brand, #174A3A)', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-color, #E5E7E1)' }}>
                                         <span>Total Estimated:</span>
                                         <span>${(calculateNights() * selectedRoom.pricePerNight * 1.12 + 15).toFixed(2)}</span>
                                     </div>
                                 </div>
 
                                 {bookingError && (
-                                    <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px', borderRadius: '6px', fontSize: '12px', marginBottom: '14px' }}>
+                                    <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: '8px', fontSize: '12px', marginBottom: '16px', border: '1px solid #fca5a5' }}>
                                         {bookingError}
                                     </div>
                                 )}
@@ -353,7 +675,7 @@ const RoomSearch = () => {
                                         type="button" 
                                         onClick={() => setSelectedRoom(null)}
                                         className="btn-secondary"
-                                        style={{ flex: 1, padding: '10px' }}
+                                        style={{ flex: 1, padding: '11px' }}
                                     >
                                         Cancel
                                     </button>
@@ -362,23 +684,47 @@ const RoomSearch = () => {
                                         onClick={handleConfirmBooking}
                                         disabled={bookingLoading}
                                         className="btn-primary"
-                                        style={{ flex: 1, padding: '10px' }}
+                                        style={{ flex: 1, padding: '11px' }}
                                     >
                                         {bookingLoading ? 'Reserving...' : 'Confirm Booking'}
                                     </button>
                                 </div>
                             </>
                         ) : (
-                            <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                                <div style={{ fontSize: '42px', marginBottom: '8px' }}>🎉</div>
-                                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>Reservation Confirmed!</h3>
-                                <p style={{ fontSize: '13px', color: '#64748b', marginTop: '6px' }}>
+                            <div style={{ textAlign: 'center', padding: '12px 0 6px' }}>
+                                <div style={{ 
+                                    width: '56px', 
+                                    height: '56px', 
+                                    borderRadius: '50%', 
+                                    backgroundColor: 'rgba(23, 74, 58, 0.1)', 
+                                    color: 'var(--primary-brand, #174A3A)', 
+                                    fontSize: '28px', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center',
+                                    margin: '0 auto 12px' 
+                                }}>
+                                    ✓
+                                </div>
+                                <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', fontWeight: 700, color: 'var(--text-primary, #252925)', margin: 0 }}>
+                                    Reservation Confirmed!
+                                </h3>
+                                <p style={{ fontSize: '13px', color: 'var(--text-secondary, #70766F)', marginTop: '6px' }}>
                                     Booking Reference ID:
                                 </p>
-                                <p style={{ fontSize: '16px', fontWeight: 700, color: '#0d9488', margin: '8px 0', letterSpacing: '0.5px' }}>
-                                    #{bookingSuccess.id}
-                                </p>
-                                <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '20px' }}>
+                                <div style={{ 
+                                    backgroundColor: 'var(--surface-muted, #F0F1EC)', 
+                                    border: '1px dashed var(--accent-gold, #C5A46D)', 
+                                    borderRadius: '8px', 
+                                    padding: '8px 16px', 
+                                    display: 'inline-block',
+                                    margin: '6px 0 14px'
+                                }}>
+                                    <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--primary-brand, #174A3A)', letterSpacing: '0.5px', fontFamily: 'monospace' }}>
+                                        #{String(bookingSuccess.id)}
+                                    </span>
+                                </div>
+                                <p style={{ fontSize: '12px', color: 'var(--text-secondary, #70766F)', marginBottom: '22px', lineHeight: 1.5 }}>
                                     Room #{bookingSuccess.roomNumber} is reserved for {bookingSuccess.checkInDate} to {bookingSuccess.checkOutDate}. An in-app confirmation notification has been sent.
                                 </p>
                                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -388,14 +734,14 @@ const RoomSearch = () => {
                                             setBookingSuccess(null);
                                         }}
                                         className="btn-secondary"
-                                        style={{ flex: 1, padding: '10px' }}
+                                        style={{ flex: 1, padding: '11px' }}
                                     >
                                         Close
                                     </button>
                                     <button 
                                         onClick={() => navigate('/my-bookings')}
                                         className="btn-primary"
-                                        style={{ flex: 1, padding: '10px' }}
+                                        style={{ flex: 1, padding: '11px' }}
                                     >
                                         View My Bookings
                                     </button>

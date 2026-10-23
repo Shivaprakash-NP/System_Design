@@ -48,6 +48,19 @@ public class NotificationService {
         return notificationRepository.findByRecipientEmailOrderByCreatedAtDesc(email);
     }
 
+    public boolean markAsRead(String notificationId, String requesterEmail) {
+        return notificationRepository.findById(notificationId).map(n -> {
+            if (requesterEmail != null && !requesterEmail.equalsIgnoreCase(n.getRecipientEmail())) {
+                logger.warn("User [{}] attempted to mark notification [{}] belonging to [{}] as read",
+                        requesterEmail, notificationId, n.getRecipientEmail());
+                return false;
+            }
+            n.setRead(true);
+            notificationRepository.save(n);
+            return true;
+        }).orElse(false);
+    }
+
     public void markAsRead(String notificationId) {
         notificationRepository.findById(notificationId).ifPresent(n -> {
             n.setRead(true);

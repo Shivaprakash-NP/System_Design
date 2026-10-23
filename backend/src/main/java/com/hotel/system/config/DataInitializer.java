@@ -5,6 +5,7 @@ import com.hotel.system.model.Hotel;
 import com.hotel.system.model.Notification;
 import com.hotel.system.model.Room;
 import com.hotel.system.model.User;
+import com.hotel.system.repository.BookingRepository;
 import com.hotel.system.repository.HotelRepository;
 import com.hotel.system.repository.NotificationRepository;
 import com.hotel.system.repository.RoomRepository;
@@ -29,6 +30,7 @@ public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final HotelRepository hotelRepository;
     private final RoomRepository roomRepository;
+    private final BookingRepository bookingRepository;
     private final NotificationRepository notificationRepository;
     private final AutocompleteService autocompleteService;
     private final PasswordEncoder passwordEncoder;
@@ -133,32 +135,71 @@ public class DataInitializer implements CommandLineRunner {
             logger.info("Seeded 4 hotels across Chennai, Mumbai, Bengaluru");
         }
 
-        if (roomRepository.count() == 0) {
-            List<Room> rooms = List.of(
-                // Hotel 101 (Chennai)
-                Room.builder().hotelId("hotel_101").roomNumber("101").type("SINGLE").pricePerNight(95.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("Queen Bed", "City View", "Work Desk")).build(),
-                Room.builder().hotelId("hotel_101").roomNumber("102").type("DOUBLE").pricePerNight(145.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("King Bed", "Balcony", "Minibar")).build(),
-                Room.builder().hotelId("hotel_101").roomNumber("103").type("SUITE").pricePerNight(280.0).capacity(4).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("King Bed", "Living Room", "Jacuzzi")).build(),
-                Room.builder().hotelId("hotel_101").roomNumber("104").type("DELUXE").pricePerNight(190.0).capacity(2).isAvailable(true).housekeepingStatus("DIRTY").amenities(List.of("King Bed", "Pool View", "Espresso Machine")).build(),
-                Room.builder().hotelId("hotel_101").roomNumber("105").type("DOUBLE").pricePerNight(145.0).capacity(2).isAvailable(true).housekeepingStatus("CLEANING").amenities(List.of("Twin Beds", "Garden View")).build(),
+        // Ensure EVERY hotel has at least four distinct room types: SINGLE, DOUBLE, DELUXE, SUITE
+        ensureHotelInventory("hotel_101", List.of(
+            Room.builder().hotelId("hotel_101").roomNumber("101").type("SINGLE").pricePerNight(95.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Ramesh").amenities(List.of("Queen Bed", "City View", "Work Desk")).build(),
+            Room.builder().hotelId("hotel_101").roomNumber("102").type("DOUBLE").pricePerNight(145.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Priya").amenities(List.of("King Bed", "Balcony", "Minibar")).build(),
+            Room.builder().hotelId("hotel_101").roomNumber("103").type("DELUXE").pricePerNight(190.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Karthik").amenities(List.of("King Bed", "Pool View", "Espresso Machine")).build(),
+            Room.builder().hotelId("hotel_101").roomNumber("104").type("SUITE").pricePerNight(280.0).capacity(4).isAvailable(true).housekeepingStatus("INSPECTED").assignedStaff("Deepa").amenities(List.of("King Bed", "Living Room", "Jacuzzi")).build()
+        ));
 
-                // Hotel 102 (Chennai)
-                Room.builder().hotelId("hotel_102").roomNumber("201").type("SINGLE").pricePerNight(120.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("Heritage Decor", "WiFi")).build(),
-                Room.builder().hotelId("hotel_102").roomNumber("202").type("DOUBLE").pricePerNight(185.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("King Bed", "City View")).build(),
-                Room.builder().hotelId("hotel_102").roomNumber("203").type("SUITE").pricePerNight(360.0).capacity(4).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("Presidential Suite", "Butler Service")).build(),
+        ensureHotelInventory("hotel_102", List.of(
+            Room.builder().hotelId("hotel_102").roomNumber("201").type("SINGLE").pricePerNight(120.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Anand").amenities(List.of("Heritage Single Bed", "WiFi", "Workstation")).build(),
+            Room.builder().hotelId("hotel_102").roomNumber("202").type("DOUBLE").pricePerNight(185.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Sneha").amenities(List.of("Heritage King Bed", "City View", "Tea Lounge")).build(),
+            Room.builder().hotelId("hotel_102").roomNumber("203").type("DELUXE").pricePerNight(240.0).capacity(3).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Vikram").amenities(List.of("Club Deluxe Bed", "Balcony", "Espresso Machine")).build(),
+            Room.builder().hotelId("hotel_102").roomNumber("204").type("SUITE").pricePerNight(360.0).capacity(4).isAvailable(true).housekeepingStatus("INSPECTED").assignedStaff("Meena").amenities(List.of("Presidential Suite", "Butler Service", "Jacuzzi")).build()
+        ));
 
-                // Hotel 201 (Mumbai)
-                Room.builder().hotelId("hotel_201").roomNumber("301").type("SINGLE").pricePerNight(110.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("Queen Bed", "Sea Breeze")).build(),
-                Room.builder().hotelId("hotel_201").roomNumber("302").type("DOUBLE").pricePerNight(175.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("King Bed", "Sea View")).build(),
-                Room.builder().hotelId("hotel_201").roomNumber("303").type("SUITE").pricePerNight(340.0).capacity(4).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("Skyline Penthouse", "Lounge Access")).build(),
+        ensureHotelInventory("hotel_201", List.of(
+            Room.builder().hotelId("hotel_201").roomNumber("301").type("SINGLE").pricePerNight(110.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Sanjay").amenities(List.of("Queen Bed", "Sea Breeze", "Executive Desk")).build(),
+            Room.builder().hotelId("hotel_201").roomNumber("302").type("DOUBLE").pricePerNight(175.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Anita").amenities(List.of("King Bed", "Sea View", "Minibar")).build(),
+            Room.builder().hotelId("hotel_201").roomNumber("303").type("DELUXE").pricePerNight(230.0).capacity(3).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Rahul").amenities(List.of("Oceanfront Deluxe", "Balcony", "Espresso Bar")).build(),
+            Room.builder().hotelId("hotel_201").roomNumber("304").type("SUITE").pricePerNight(340.0).capacity(4).isAvailable(true).housekeepingStatus("INSPECTED").assignedStaff("Sunita").amenities(List.of("Skyline Penthouse", "Lounge Access", "Jacuzzi")).build()
+        ));
 
-                // Hotel 301 (Bengaluru)
-                Room.builder().hotelId("hotel_301").roomNumber("401").type("DOUBLE").pricePerNight(210.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").amenities(List.of("Garden Terrace", "Luxury Bath")).build(),
-                Room.builder().hotelId("hotel_301").roomNumber("402").type("SUITE").pricePerNight(420.0).capacity(4).isAvailable(true).housekeepingStatus("INSPECTED").amenities(List.of("Royal Suite", "Chandelier")).build()
-            );
+        ensureHotelInventory("hotel_301", List.of(
+            Room.builder().hotelId("hotel_301").roomNumber("401").type("SINGLE").pricePerNight(130.0).capacity(1).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Ganesh").amenities(List.of("Palace Single Room", "Garden View", "Ergonomic Desk")).build(),
+            Room.builder().hotelId("hotel_301").roomNumber("402").type("DOUBLE").pricePerNight(210.0).capacity(2).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Lakshmi").amenities(List.of("Garden Terrace Double", "Luxury Bath", "Minibar")).build(),
+            Room.builder().hotelId("hotel_301").roomNumber("403").type("DELUXE").pricePerNight(290.0).capacity(3).isAvailable(true).housekeepingStatus("CLEAN").assignedStaff("Mohan").amenities(List.of("Royal Deluxe Suite", "Pool View", "Espresso Machine")).build(),
+            Room.builder().hotelId("hotel_301").roomNumber("404").type("SUITE").pricePerNight(420.0).capacity(4).isAvailable(true).housekeepingStatus("INSPECTED").assignedStaff("Shalini").amenities(List.of("Royal Maharaja Suite", "Chandelier", "Private Jacuzzi")).build()
+        ));
 
-            roomRepository.saveAll(rooms);
-            logger.info("Seeded {} rooms across hotels", rooms.size());
+        // Ensure room availability and housekeeping status reflect occupancy:
+        // Rooms not currently occupied by active CHECKED_IN guests are marked CLEAN and ready for booking
+        List<Room> allRooms = roomRepository.findAll();
+        List<com.hotel.system.model.Booking> checkedInBookings = bookingRepository.findAll().stream()
+                .filter(b -> "CHECKED_IN".equalsIgnoreCase(b.getStatus()))
+                .toList();
+        java.util.Set<String> occupiedRoomIds = checkedInBookings.stream()
+                .map(com.hotel.system.model.Booking::getRoomId)
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (Room r : allRooms) {
+            if (occupiedRoomIds.contains(r.getId())) {
+                r.setHousekeepingStatus("DIRTY");
+                r.setAvailable(false);
+            } else if ("DIRTY".equalsIgnoreCase(r.getHousekeepingStatus()) || r.getHousekeepingStatus() == null) {
+                r.setHousekeepingStatus("CLEAN");
+                r.setAvailable(true);
+            } else {
+                boolean ready = "CLEAN".equalsIgnoreCase(r.getHousekeepingStatus()) || "INSPECTED".equalsIgnoreCase(r.getHousekeepingStatus());
+                r.setAvailable(ready);
+            }
+            roomRepository.save(r);
+        }
+    }
+
+    private void ensureHotelInventory(String hotelId, List<Room> templateRooms) {
+        List<Room> existing = roomRepository.findByHotelId(hotelId);
+        java.util.Set<String> existingTypes = existing.stream()
+                .map(r -> r.getType().toUpperCase())
+                .collect(java.util.stream.Collectors.toSet());
+
+        for (Room template : templateRooms) {
+            if (!existingTypes.contains(template.getType().toUpperCase())) {
+                roomRepository.save(template);
+                logger.info("Added missing room type [{}] for hotel [{}] Room #{}", template.getType(), hotelId, template.getRoomNumber());
+            }
         }
     }
 
@@ -193,8 +234,8 @@ public class DataInitializer implements CommandLineRunner {
             Notification n1 = Notification.builder()
                     .recipientEmail(guestEmail)
                     .recipientName("John Guest")
-                    .title("Welcome to SSN Hotel System")
-                    .message("Welcome! Enjoy your stay with high-speed amenities and seamless booking.")
+                    .title("Welcome to Booking.com")
+                    .message("Welcome! Enjoy your stay with premier accommodations and seamless reservation service.")
                     .type("WELCOME")
                     .isRead(false)
                     .deliveryChannel("IN_APP")

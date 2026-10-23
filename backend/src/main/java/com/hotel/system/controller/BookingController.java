@@ -83,10 +83,15 @@ public class BookingController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Booking> getBookingById(@PathVariable Long id) {
-        return bookingService.getBookingById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> getBookingById(@PathVariable String id) {
+        try {
+            Long bookingId = Long.parseLong(id.trim());
+            return bookingService.getBookingById(bookingId)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid booking identifier format: " + id));
+        }
     }
 
     @GetMapping
@@ -95,19 +100,33 @@ public class BookingController {
     }
 
     @PostMapping("/{id}/check-in")
-    public ResponseEntity<?> checkIn(@PathVariable Long id) {
+    public ResponseEntity<?> checkIn(@PathVariable String id) {
         try {
-            return ResponseEntity.ok(bookingService.checkIn(id));
+            Long bookingId = Long.parseLong(id.trim());
+            return ResponseEntity.ok(bookingService.checkIn(bookingId));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid booking identifier format: " + id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<?> cancelBooking(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<?> cancelBooking(@PathVariable String id, Authentication authentication) {
         try {
+            Long bookingId = Long.parseLong(id.trim());
             String user = authentication != null ? authentication.getName() : "system";
-            return ResponseEntity.ok(bookingService.cancelBooking(id, user));
+            return ResponseEntity.ok(bookingService.cancelBooking(bookingId, user));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid booking identifier format: " + id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

@@ -19,31 +19,48 @@ public class BillingController {
 
     @PostMapping("/checkout/{bookingId}")
     public ResponseEntity<?> checkout(
-            @PathVariable Long bookingId,
+            @PathVariable String bookingId,
             @RequestBody(required = false) Map<String, String> body) {
         try {
+            Long bId = Long.parseLong(bookingId.trim());
             String paymentMethod = (body != null && body.containsKey("paymentMethod"))
                     ? body.get("paymentMethod")
                     : "SIMULATED_CARD";
-            Invoice invoice = billingService.generateInvoiceAndCheckout(bookingId, paymentMethod);
+            Invoice invoice = billingService.generateInvoiceAndCheckout(bId, paymentMethod);
             return ResponseEntity.ok(invoice);
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid booking identifier format: " + bookingId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
 
     @GetMapping("/invoice/{invoiceId}")
-    public ResponseEntity<Invoice> getInvoiceById(@PathVariable Long invoiceId) {
-        return billingService.getInvoiceById(invoiceId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> getInvoiceById(@PathVariable String invoiceId) {
+        try {
+            Long invId = Long.parseLong(invoiceId.trim());
+            return billingService.getInvoiceById(invId)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid invoice identifier format: " + invoiceId));
+        }
     }
 
     @GetMapping("/booking/{bookingId}")
-    public ResponseEntity<Invoice> getInvoiceByBooking(@PathVariable Long bookingId) {
-        return billingService.getInvoiceByBookingId(bookingId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<?> getInvoiceByBooking(@PathVariable String bookingId) {
+        try {
+            Long bId = Long.parseLong(bookingId.trim());
+            return billingService.getInvoiceByBookingId(bId)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build());
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid booking identifier format: " + bookingId));
+        }
     }
 
     @GetMapping("/my")

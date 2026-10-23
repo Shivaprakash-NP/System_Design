@@ -1,5 +1,8 @@
 package com.hotel.system.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,7 +29,10 @@ public class Notification {
     private String title;
     private String message;
     private String type; // BOOKING_CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, INVOICE_GENERATED
-    private Long referenceId; // bookingId or invoiceId
+
+    @JsonSerialize(using = ToStringSerializer.class)
+    @JsonFormat(shape = JsonFormat.Shape.STRING)
+    private Long referenceId; // bookingId or invoiceId (64-bit precision safe)
     private boolean isRead;
     private String deliveryChannel; // IN_APP, SIMULATED_EMAIL, SIMULATED_SMS
     private String deliveryStatus; // DELIVERED, PENDING, FAILED
