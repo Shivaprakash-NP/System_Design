@@ -65,8 +65,14 @@ const SystemDesignDashboard = () => {
     // Live Telemetry Poller
     const fetchAllMetrics = async () => {
         try {
+            let userEmail = 'guest@hotel.demo';
+            try {
+                const userObj = JSON.parse(localStorage.getItem('user') || '{}');
+                if (userObj && userObj.email) userEmail = userObj.email;
+            } catch (e) {}
+
             const [rl, sh, ch, ca, us, cr, crRates, ac] = await Promise.all([
-                api.get('/system-design/rate-limiter/stats').catch(() => ({ data: null })),
+                api.get(`/system-design/rate-limiter/stats?client=${encodeURIComponent(userEmail)}`).catch(() => ({ data: null })),
                 api.get('/system-design/sharding/stats').catch(() => ({ data: null })),
                 api.get('/system-design/consistent-hashing/stats').catch(() => ({ data: null })),
                 api.get('/system-design/cache/stats').catch(() => ({ data: null })),
@@ -155,13 +161,20 @@ const SystemDesignDashboard = () => {
     const handleSimBurst = async (burstCount) => {
         try {
             const res = await api.post(`/system-design/rate-limiter/test?burst=${burstCount}&capacity=10&refillRate=2`);
-            if (res.data && res.data.requests) {
-                const mapped = res.data.requests.map((r, idx) => ({
-                    id: Date.now() + idx,
-                    status: r.status,
-                    text: r.text
-                }));
-                setSimRequestsLog(prev => [...mapped, ...prev].slice(0, 10));
+            if (res.data) {
+                if (res.data.remainingTokens !== undefined) {
+                    setSimTokens(res.data.remainingTokens);
+                }
+                if (res.data.requests) {
+                    const mapped = res.data.requests.map((r, idx) => ({
+                        id: Date.now() + idx,
+                        status: r.status,
+                        text: r.text,
+                        tokensRemaining: r.tokensRemaining,
+                        latencyMs: r.latencyMs
+                    }));
+                    setSimRequestsLog(prev => [...mapped, ...prev].slice(0, 15));
+                }
             }
             fetchAllMetrics();
         } catch (e) {
@@ -201,20 +214,27 @@ const SystemDesignDashboard = () => {
     };
 
     // Shard Evaluator
-    const handleEvaluateShardKey = () => {
-        let hash = 0;
-        for (let i = 0; i < evalKey.length; i++) {
-            hash = ((hash << 5) - hash) + evalKey.charCodeAt(i);
-            hash |= 0;
+    const handleEvaluateShardKey = async () => {
+        if (!evalKey.trim()) return;
+        try {
+            const res = await api.get(`/system-design/sharding/route?key=${encodeURIComponent(evalKey.trim())}`);
+            setEvalResult(res.data);
+        } catch (e) {
+            let hash = 0;
+            for (let i = 0; i < evalKey.length; i++) {
+                hash = ((hash << 5) - hash) + evalKey.charCodeAt(i);
+                hash |= 0;
+            }
+            const absHash = Math.abs(hash);
+            const resolvedShard = `shard_${absHash % (shardingStats?.activeShardsCount || 2)}`;
+            setEvalResult({
+                key: evalKey,
+                computedHash: absHash,
+                targetShard: resolvedShard,
+                latencyMs: '< 1 ms',
+                strategy: 'Consistent Ring Mapping with MD5 V-Nodes'
+            });
         }
-        const absHash = Math.abs(hash);
-        const resolvedShard = `shard_${absHash % (shardingStats?.activeShardsCount || 2)}`;
-        setEvalResult({
-            key: evalKey,
-            computedHash: absHash,
-            targetShard: resolvedShard,
-            strategy: 'Consistent Ring Mapping with MD5 V-Nodes'
-        });
     };
 
     // Add Shard Interactively & Measure Consistent Rehashing
@@ -696,29 +716,41 @@ const SystemDesignDashboard = () => {
                                     <li><strong>Integration:</strong> <code>com.hotel.system.components.ratelimiter.TokenBucketRateLimiter</code>.</li>
                                 </ul>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '16px' }}>
-                                    <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>ALLOWED REQUESTS</span>
-                                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginTop: '16px' }}>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b' }}>ALLOWED REQUESTS</span>
+                                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
                                             {rateLimiterStats?.allowedRequests || 0}
                                         </div>
                                     </div>
-                                    <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>REJECTED (429)</span>
-                                        <div style={{ fontSize: '18px', fontWeight: 800, color: '#b91c1c', marginTop: '2px' }}>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b' }}>REJECTED (429)</span>
+                                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#b91c1c', marginTop: '2px' }}>
                                             {rateLimiterStats?.rejectedRequests || 0}
                                         </div>
                                     </div>
-                                    <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>REJECTION RATIO</span>
-                                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b' }}>REJECTION RATIO</span>
+                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
                                             {rateLimiterStats?.rejectionRatePercentage || '0.00%'}
                                         </div>
                                     </div>
-                                    <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                        <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b' }}>BURST LIMIT</span>
-                                        <div style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
-                                            100 req / min
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b' }}>ACTIVE BUCKET TOKENS</span>
+                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#006ce4', marginTop: '2px' }}>
+                                            {rateLimiterStats?.currentTokens ?? 100} / {rateLimiterStats?.capacity ?? 100}
+                                        </div>
+                                    </div>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b' }}>AVG CHECK DELAY</span>
+                                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#047857', marginTop: '2px' }}>
+                                            {rateLimiterStats?.averageLatencyMs || '0.000 ms'}
+                                        </div>
+                                    </div>
+                                    <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#64748b' }}>TOKENS CONSUMED</span>
+                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#4338ca', marginTop: '2px' }}>
+                                            {rateLimiterStats?.totalTokensConsumed || 0}
                                         </div>
                                     </div>
                                 </div>
@@ -734,7 +766,7 @@ const SystemDesignDashboard = () => {
                                         🧪 Interactive Token Bucket Burst Simulator
                                     </h4>
                                     <span style={{ fontSize: '10px', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                                        Auto-refill: +1 token/1.2s
+                                        Auto-refill: +1 token/1.2s (Cap: {simCapacity})
                                     </span>
                                 </div>
 
@@ -744,7 +776,7 @@ const SystemDesignDashboard = () => {
                                         <strong style={{ color: simTokens > 2 ? '#15803d' : '#b91c1c' }}>{simTokens} / {simCapacity} Tokens</strong>
                                     </div>
                                     <div style={{ height: '14px', backgroundColor: '#e2e8f0', borderRadius: '7px', overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', width: `${(simTokens / simCapacity) * 100}%`, backgroundColor: simTokens > 3 ? '#006ce4' : '#f59e0b', transition: 'width 0.3s ease' }}></div>
+                                        <div style={{ height: '100%', width: `${Math.max(0, Math.min(100, (simTokens / simCapacity) * 100))}%`, backgroundColor: simTokens > 3 ? '#006ce4' : '#f59e0b', transition: 'width 0.25s ease' }}></div>
                                     </div>
                                 </div>
 
@@ -764,17 +796,99 @@ const SystemDesignDashboard = () => {
                                     <strong>Live Token Bucket Request Trace Log:</strong>
                                     <div style={{ marginTop: '6px', maxHeight: '110px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         {simRequestsLog.length === 0 ? (
-                                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Click buttons above to simulate traffic bursts.</span>
+                                            <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Click buttons above to simulate traffic bursts against Redis Lua script.</span>
                                         ) : (
                                             simRequestsLog.map(log => (
-                                                <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', borderRadius: '4px', backgroundColor: log.status === 200 ? '#ecfdf5' : '#fef2f2', border: log.status === 200 ? '1px solid #a7f3d0' : '1px solid #fecaca' }}>
+                                                <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', borderRadius: '4px', backgroundColor: log.status === 200 ? '#ecfdf5' : '#fef2f2', border: log.status === 200 ? '1px solid #a7f3d0' : '1px solid #fecaca' }}>
                                                     <span style={{ color: log.status === 200 ? '#065f46' : '#991b1b', fontWeight: 600 }}>{log.text}</span>
-                                                    <span style={{ color: '#64748b', fontSize: '10px' }}>HTTP {log.status}</span>
+                                                    <span style={{ color: '#64748b', fontSize: '10px' }}>
+                                                        {log.latencyMs !== undefined ? `${log.latencyMs} ms • ` : ''}HTTP {log.status}
+                                                    </span>
                                                 </div>
                                             ))
                                         )}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Live End-to-End Request & Token Audit Log (From Login to Bookings) */}
+                        <div style={{ borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', padding: '16px 24px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e', display: 'inline-block' }}></span>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        Live End-to-End Request & Token Telemetry (Recorded from Login, Bookings, Search & APIs)
+                                    </h4>
+                                </div>
+                                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                                    Monitored Client: <strong>{rateLimiterStats?.monitoredClient || 'Cluster'}</strong>
+                                </span>
+                            </div>
+
+                            <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', backgroundColor: '#ffffff' }}>
+                                <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                                            <th style={{ padding: '6px 10px' }}>Timestamp</th>
+                                            <th style={{ padding: '6px 10px' }}>Client</th>
+                                            <th style={{ padding: '6px 10px' }}>Action</th>
+                                            <th style={{ padding: '6px 10px' }}>Endpoint</th>
+                                            <th style={{ padding: '6px 10px', textAlign: 'center' }}>Status</th>
+                                            <th style={{ padding: '6px 10px', textAlign: 'center' }}>Tokens Left</th>
+                                            <th style={{ padding: '6px 10px', textAlign: 'right' }}>Check Delay</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {!rateLimiterStats?.recentRequests || rateLimiterStats.recentRequests.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="7" style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                    No requests recorded yet. Perform actions like User Login, Hotel Search, or Bookings to watch live token consumption and latency metrics recorded here in real-time.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            rateLimiterStats.recentRequests.map((req, idx) => (
+                                                <tr key={req.id || idx} style={{ borderBottom: '1px solid #f8fafc', backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace', color: '#64748b' }}>{req.timestamp}</td>
+                                                    <td style={{ padding: '6px 10px', fontWeight: 600, color: '#0f172a' }}>{req.client}</td>
+                                                    <td style={{ padding: '6px 10px' }}>
+                                                        <span style={{
+                                                            fontSize: '10px',
+                                                            fontWeight: 700,
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            backgroundColor: req.action?.includes('LOGIN') ? '#ede9fe' : req.action?.includes('BOOKING') ? '#ecfdf5' : '#e0f2fe',
+                                                            color: req.action?.includes('LOGIN') ? '#6d28d9' : req.action?.includes('BOOKING') ? '#047857' : '#0369a1'
+                                                        }}>
+                                                            {req.action}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '6px 10px', fontFamily: 'monospace', color: '#334155' }}>
+                                                        <strong>{req.method}</strong> {req.endpoint}
+                                                    </td>
+                                                    <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                                                        <span style={{
+                                                            fontSize: '10px',
+                                                            fontWeight: 700,
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px',
+                                                            backgroundColor: req.statusCode === 200 ? '#ecfdf5' : '#fef2f2',
+                                                            color: req.statusCode === 200 ? '#065f46' : '#991b1b'
+                                                        }}>
+                                                            {req.statusCode} {req.allowed ? 'OK' : '429'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: req.tokensRemaining > 5 ? '#006ce4' : '#d97706' }}>
+                                                        {req.tokensRemaining} / 100
+                                                    </td>
+                                                    <td style={{ padding: '6px 10px', textAlign: 'right', fontWeight: 600, color: '#059669', fontFamily: 'monospace' }}>
+                                                        {typeof req.latencyMs === 'number' ? `${req.latencyMs.toFixed(3)} ms` : req.latencyMs}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -989,8 +1103,9 @@ const SystemDesignDashboard = () => {
                                         </button>
                                     </div>
                                     {evalResult && (
-                                        <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#ecfdf5', borderRadius: '4px', fontSize: '11px', color: '#065f46' }}>
-                                            Destination: <strong>{evalResult.targetShard}</strong> (MD5 Token: <code>{evalResult.computedHash}</code>)
+                                        <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#ecfdf5', borderRadius: '4px', fontSize: '11px', color: '#065f46', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span>Destination: <strong>{evalResult.targetShard}</strong></span>
+                                            <span>Delay: <strong>{evalResult.latencyMs || '< 1 ms'}</strong></span>
                                         </div>
                                     )}
                                 </div>
@@ -1106,7 +1221,10 @@ const SystemDesignDashboard = () => {
                                         {/* Real Database Data Indicator Badge */}
                                         <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#eff6ff', borderRadius: '6px', border: '1px solid #bfdbfe', fontSize: '11px', color: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                             <span>✓ <strong>100% Real Database Records</strong> (MongoDB WiredTiger)</span>
-                                            <span style={{ fontWeight: 800 }}>{remappingResult.sampleKeysCount} Live Records</span>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <span>Compute Delay: <strong>{remappingResult.executionTimeMs || '< 1 ms'}</strong></span>
+                                                <span style={{ fontWeight: 800 }}>{remappingResult.sampleKeysCount} Live Records</span>
+                                            </div>
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
@@ -1228,12 +1346,16 @@ const SystemDesignDashboard = () => {
                                     {idBenchmarkResult && (
                                         <div style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '8px', border: '1px solid #bbf7d0', fontSize: '12px', marginBottom: '12px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                                                <span>Collisions (25,000 Concurrent IDs):</span>
+                                                <span>Collisions (Concurrent IDs):</span>
                                                 <strong style={{ color: '#15803d' }}>{idBenchmarkResult.collisionCount} (ZERO COLLISIONS)</strong>
                                             </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                                                 <span>Throughput:</span>
                                                 <strong style={{ color: '#006ce4' }}>{idBenchmarkResult.generationRatePerSecond}</strong>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>Execution Duration / Delay:</span>
+                                                <strong style={{ color: '#4338ca' }}>{idBenchmarkResult.durationMs}</strong>
                                             </div>
                                         </div>
                                     )}

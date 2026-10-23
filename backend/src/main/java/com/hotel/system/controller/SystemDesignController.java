@@ -30,15 +30,40 @@ public class SystemDesignController {
     private final ExternalHotelCrawler externalHotelCrawler;
     private final AutocompleteService autocompleteService;
 
-    // 1. Rate Limiter Stats
+    // 1. Rate Limiter Stats & Audit Trace
     @GetMapping("/rate-limiter/stats")
-    public ResponseEntity<Map<String, Object>> getRateLimiterStats() {
+    public ResponseEntity<Map<String, Object>> getRateLimiterStats(
+            @RequestParam(defaultValue = "guest@hotel.demo") String client) {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("allowedRequests", rateLimiter.getAllowedRequests());
         stats.put("rejectedRequests", rateLimiter.getRejectedRequests());
         stats.put("rejectionRatePercentage", String.format("%.2f%%", rateLimiter.getRejectionRate()));
+        stats.put("totalTokensConsumed", rateLimiter.getTotalTokensConsumed());
+        stats.put("averageLatencyMs", String.format("%.3f ms", rateLimiter.getAverageLatencyMs()));
+        stats.put("lastCheckLatencyMs", String.format("%.3f ms", rateLimiter.getLastCheckLatencyMs()));
+
+        long currentTokens = rateLimiter.getAvailableTokens(client, rateLimiter.getDefaultCapacity(), rateLimiter.getDefaultRefillRate());
+        stats.put("currentTokens", currentTokens);
+        stats.put("capacity", rateLimiter.getDefaultCapacity());
+        stats.put("refillRate", rateLimiter.getDefaultRefillRate());
+        stats.put("monitoredClient", client);
+        stats.put("recentRequests", rateLimiter.getRecentAuditLogs());
         stats.put("algorithm", "Token Bucket (Redis Lua with In-memory Fallback)");
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/rate-limiter/current-tokens")
+    public ResponseEntity<Map<String, Object>> getCurrentTokens(
+            @RequestParam(defaultValue = "sim_user") String client,
+            @RequestParam(defaultValue = "10") int capacity,
+            @RequestParam(defaultValue = "2") int refillRate) {
+        long tokens = rateLimiter.getAvailableTokens(client, capacity, refillRate);
+        return ResponseEntity.ok(Map.of(
+                "client", client,
+                "currentTokens", tokens,
+                "capacity", capacity,
+                "refillRate", refillRate
+        ));
     }
 
     @PostMapping("/rate-limiter/reset")
@@ -53,41 +78,82 @@ public class SystemDesignController {
             @RequestParam(defaultValue = "5") int burst,
             @RequestParam(defaultValue = "10") int capacity,
             @RequestParam(defaultValue = "2") int refillRate) {
-        
+
         List<Map<String, Object>> results = new ArrayList<>();
         int allowed = 0;
         int rejected = 0;
+        long lastRemaining = 0;
+        double totalBurstLatency = 0.0;
 
         for (int i = 0; i < burst; i++) {
-            boolean isAllowed = rateLimiter.isAllowed(clientId, capacity, refillRate);
+            TokenBucketRateLimiter.TokenConsumptionResult cr = rateLimiter.consumeToken(clientId, capacity, refillRate, 1);
+            boolean isAllowed = cr.allowed();
+            lastRemaining = cr.remainingTokens();
+            totalBurstLatency += cr.latencyMs();
+
             if (isAllowed) allowed++;
             else rejected++;
+
+            int status = isAllowed ? 200 : 429;
+            String text = isAllowed
+                    ? String.format("200 OK (Allowed - Token Consumed, %d left)", cr.remainingTokens())
+                    : "429 Rate Limit Exceeded (Tokens Depleted)";
 
             results.add(Map.of(
                     "requestIndex", i + 1,
                     "allowed", isAllowed,
-                    "status", isAllowed ? 200 : 429,
-                    "text", isAllowed ? "200 OK (Allowed by Token Bucket)" : "429 Rate Limit Exceeded (Tokens Depleted)",
+                    "status", status,
+                    "text", text,
+                    "tokensRemaining", cr.remainingTokens(),
+                    "latencyMs", Double.parseDouble(String.format("%.3f", cr.latencyMs())),
                     "timestamp", System.currentTimeMillis() + i
             ));
+
+            rateLimiter.recordAudit(
+                    clientId,
+                    "POST",
+                    "/api/v1/system-design/rate-limiter/test",
+                    "BURST_SIMULATION",
+                    isAllowed,
+                    status,
+                    cr.remainingTokens(),
+                    cr.latencyMs()
+            );
         }
+
+        double avgBurstLatency = burst > 0 ? (totalBurstLatency / burst) : 0.0;
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("clientId", clientId);
         resp.put("burstCount", burst);
         resp.put("allowedCount", allowed);
         resp.put("rejectedCount", rejected);
-        resp.put("requests", results);
+        resp.put("remainingTokens", lastRemaining);
         resp.put("capacity", capacity);
         resp.put("refillRate", refillRate);
+        resp.put("averageBurstLatencyMs", String.format("%.3f ms", avgBurstLatency));
+        resp.put("requests", results);
         resp.put("backendEngine", "Redis Lua Atomic Script");
         return ResponseEntity.ok(resp);
     }
 
-    // 2. Sharding Statistics
+    // 2. Sharding Statistics & Routing
     @GetMapping("/sharding/stats")
     public ResponseEntity<Map<String, Object>> getShardingStats() {
         return ResponseEntity.ok(shardingService.getShardDistributionStatistics());
+    }
+
+    @GetMapping("/sharding/route")
+    public ResponseEntity<Map<String, Object>> routeShardKey(@RequestParam(defaultValue = "hotel_101") String key) {
+        long start = System.nanoTime();
+        String targetShard = shardingService.routeShardForHotel(key);
+        double latencyMs = (System.nanoTime() - start) / 1_000_000.0;
+        return ResponseEntity.ok(Map.of(
+                "key", key,
+                "targetShard", targetShard,
+                "latencyMs", String.format("%.3f ms", latencyMs),
+                "strategy", "Consistent Hash Ring with 100 V-Nodes per Host"
+        ));
     }
 
     @PostMapping("/sharding/add-shard")
@@ -120,7 +186,7 @@ public class SystemDesignController {
     public ResponseEntity<Map<String, Object>> testRemapping(
             @RequestParam(defaultValue = "node_delta") String newNode,
             @RequestParam(defaultValue = "100") int sampleKeysCount) {
-        
+
         List<String> keys = shardingService.getAllRealDbKeys();
         if (keys.isEmpty()) {
             keys.add("hotel:hotel_101 (SSN Grand Hotel)");

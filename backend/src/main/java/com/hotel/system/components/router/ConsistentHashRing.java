@@ -75,6 +75,7 @@ public class ConsistentHashRing {
      * Computes before-and-after distributions, exact remapped keys, and virtual ring geometry for visualization.
      */
     public synchronized Map<String, Object> measureRemapping(List<String> sampleKeys, String newNode) {
+        long startNanos = System.nanoTime();
         Map<String, String> beforeConsistent = new HashMap<>();
         Map<String, String> beforeModulo = new HashMap<>();
         Map<String, Integer> beforeDistribution = new LinkedHashMap<>();
@@ -153,6 +154,7 @@ public class ConsistentHashRing {
             ));
         }
 
+        double executionTimeMs = (System.nanoTime() - startNanos) / 1_000_000.0;
         Map<String, Object> results = new LinkedHashMap<>();
         results.put("sampleKeysCount", sampleKeys.size());
         results.put("newNode", newNode);
@@ -166,6 +168,7 @@ public class ConsistentHashRing {
         results.put("moduloRemappedCount", moduloRemapped);
         results.put("moduloRemappingPercentage", String.format("%.2f%%", moduloRatio));
         results.put("theoreticalOptimalRemap", String.format("%.2f%%", theoreticalOptimal));
+        results.put("executionTimeMs", String.format("%.3f ms", executionTimeMs));
         results.put("remappedKeysSample", remappedDetails);
         results.put("ringVisualNodes", ringVisualNodes);
 
@@ -176,6 +179,7 @@ public class ConsistentHashRing {
      * Measures key remapping when an existing node is removed, compared against simple modulo hashing.
      */
     public synchronized Map<String, Object> measureRemoval(List<String> sampleKeys, String nodeToRemove) {
+        long startNanos = System.nanoTime();
         if (!physicalNodes.contains(nodeToRemove)) {
             throw new IllegalArgumentException("Node does not exist in cluster: " + nodeToRemove);
         }
@@ -260,6 +264,7 @@ public class ConsistentHashRing {
             ));
         }
 
+        double executionTimeMs = (System.nanoTime() - startNanos) / 1_000_000.0;
         Map<String, Object> results = new LinkedHashMap<>();
         results.put("sampleKeysCount", sampleKeys.size());
         results.put("action", "REMOVE_SHARD");
@@ -274,6 +279,7 @@ public class ConsistentHashRing {
         results.put("moduloRemappedCount", moduloRemapped);
         results.put("moduloRemappingPercentage", String.format("%.2f%%", moduloRatio));
         results.put("theoreticalOptimalRemap", String.format("%.2f%%", theoreticalOptimal));
+        results.put("executionTimeMs", String.format("%.3f ms", executionTimeMs));
         results.put("remappedKeysSample", remappedDetails);
         results.put("ringVisualNodes", ringVisualNodes);
 
